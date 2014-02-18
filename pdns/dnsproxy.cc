@@ -216,7 +216,7 @@ void DNSProxy::mainloop(void)
     }
   }
   catch(PDNSException &ae) {
-    L<<Logger::Error<<"Fatal error in DNS proxy: "<<ae.reason<<endl;
+    L<<Logger::Error<<"Fatal error in DNS proxy: "<<ae.what()<<endl;
   }
   catch(std::exception &e) {
     L<<Logger::Error<<"Communicator thread died because of STL error: "<<e.what()<<endl;

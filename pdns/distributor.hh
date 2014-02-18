@@ -239,7 +239,7 @@ template<class Answer, class Question, class Backend>void *MultiThreadDistributo
         delete q;
       }
       catch(const PDNSException &e) {
-        L<<Logger::Error<<"Backend error: "<<e.reason<<endl;
+        L<<Logger::Error<<"Backend error: "<<e.what()<<endl;
         delete b;
         return 0;
       }
@@ -257,8 +257,8 @@ template<class Answer, class Question, class Backend>void *MultiThreadDistributo
     
     delete b;
   }
-  catch(const PDNSException &AE) {
-    L<<Logger::Error<<Logger::NTLog<<"Distributor caught fatal exception: "<<AE.reason<<endl;
+  catch(const PDNSException &pe) {
+    L<<Logger::Error<<Logger::NTLog<<"Distributor caught fatal exception: "<<pe.what()<<endl;
   }
   catch(...) {
     L<<Logger::Error<<Logger::NTLog<<"Caught an unknown exception when creating backend, probably"<<endl;
@@ -273,7 +273,7 @@ template<class Answer, class Question, class Backend>int SingleThreadDistributor
     a=b->question(q); // a can be NULL!
   }
   catch(const PDNSException &e) {
-    L<<Logger::Error<<"Backend error: "<<e.reason<<endl;
+    L<<Logger::Error<<"Backend error: "<<e.what()<<endl;
     delete b;
     b=new Backend;
     return 0;

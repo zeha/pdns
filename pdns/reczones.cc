@@ -300,7 +300,7 @@ string reloadAuthAndForwards()
     L<<Logger::Error<<"Had error reloading zones, keeping original data: "<<e.what()<<endl;
   }
   catch(PDNSException& ae) {
-    L<<Logger::Error<<"Encountered error reloading zones, keeping original data: "<<ae.reason<<endl;
+    L<<Logger::Error<<"Encountered error reloading zones, keeping original data: "<<ae.what()<<endl;
   }
   catch(...) {
     L<<Logger::Error<<"Encountered unknown error reloading zones, keeping original data"<<endl;

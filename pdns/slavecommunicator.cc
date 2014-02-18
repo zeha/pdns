@@ -349,7 +349,7 @@ void CommunicatorClass::suck(const string &domain,const string &remote)
       notifyDomain(domain);
   }
   catch(DBException &re) {
-    L<<Logger::Error<<"Unable to feed record during incoming AXFR of '"+domain+"': "<<re.reason<<endl;
+    L<<Logger::Error<<"Unable to feed record during incoming AXFR of '"+domain+"': "<<re.what()<<endl;
     if(di.backend && transaction) {
       L<<Logger::Error<<"Aborting possible open transaction for domain '"<<domain<<"' AXFR"<<endl;
       di.backend->abortTransaction();
@@ -370,14 +370,14 @@ void CommunicatorClass::suck(const string &domain,const string &remote)
     }
   }
   catch(ResolverException &re) {
-    L<<Logger::Error<<"Unable to AXFR zone '"+domain+"' from remote '"<<remote<<"' (resolver): "<<re.reason<<endl;
+    L<<Logger::Error<<"Unable to AXFR zone '"+domain+"' from remote '"<<remote<<"' (resolver): "<<re.what()<<endl;
     if(di.backend && transaction) {
       L<<Logger::Error<<"Aborting possible open transaction for domain '"<<domain<<"' AXFR"<<endl;
       di.backend->abortTransaction();
     }
   }
   catch(PDNSException &ae) {
-    L<<Logger::Error<<"Unable to AXFR zone '"+domain+"' from remote '"<<remote<<"' (PDNSException): "<<ae.reason<<endl;
+    L<<Logger::Error<<"Unable to AXFR zone '"+domain+"' from remote '"<<remote<<"' (PDNSException): "<<ae.what()<<endl;
     if(di.backend && transaction) {
       L<<Logger::Error<<"Aborting possible open transaction for domain '"<<domain<<"' AXFR"<<endl;
       di.backend->abortTransaction();
@@ -443,7 +443,7 @@ struct SlaveSenderReceiver
       }
     }
     catch(PDNSException& e) {
-      throw runtime_error("While attempting to query freshness of '"+dni.di.zone+"': "+e.reason);
+      throw runtime_error("While attempting to query freshness of '"+dni.di.zone+"': "+e.what());
     }
   }
   
@@ -586,7 +586,7 @@ void CommunicatorClass::slaveRefresh(PacketHandler *P)
       L<<Logger::Error<<"While checking domain freshness: " << e.what()<<endl;
     }
     catch(PDNSException &re) {  
-      L<<Logger::Error<<"While checking domain freshness: " << re.reason<<endl;
+      L<<Logger::Error<<"While checking domain freshness: " << re.what()<<endl;
     }
   }
   L<<Logger::Warning<<"Received serial number updates for "<<ssr.d_freshness.size()<<" zones, had "<<ifl.getTimeouts()<<" timeouts"<<endl;

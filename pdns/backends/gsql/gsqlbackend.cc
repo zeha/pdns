@@ -162,7 +162,7 @@ bool GSQLBackend::getDomainInfo(const string &domain, DomainInfo &di)
       di.serial = sd.serial;
   }
   catch(PDNSException &ae){
-    L<<Logger::Error<<"Error retrieving serial for '"<<domain<<"': "<<ae.reason<<endl;
+    L<<Logger::Error<<"Error retrieving serial for '"<<domain<<"': "<<ae.what()<<endl;
   }
 
   di.kind = DomainInfo::stringToKind(type);

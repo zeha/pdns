@@ -2155,7 +2155,7 @@ private:
       }
     } catch (OracleException &theException) {
       L << Logger::Critical << "OracleFactory: "
-        << theException.reason << endl;
+        << theException.what() << endl;
       Cleanup();
       throw theException;
     }
@@ -2176,7 +2176,7 @@ private:
         }
       } catch (OracleException &theException) {
         L << Logger::Error << "Failed to destroy Oracle session pool: "
-          << theException.reason << endl;
+          << theException.what() << endl;
       }
     }
 

@@ -69,7 +69,7 @@ bool RemoteBackend::send(rapidjson::Document &value) {
    try {
      return connector->send(value);
    } catch (PDNSException &ex) {
-     L<<Logger::Error<<"Exception caught when sending: "<<ex.reason<<std::endl;
+     L<<Logger::Error<<"Exception caught when sending: "<<ex.what()<<std::endl;
    } catch (...) {
      L<<Logger::Error<<"Exception caught when sending"<<std::endl;
    }
@@ -83,7 +83,7 @@ bool RemoteBackend::recv(rapidjson::Document &value) {
    try {
      return connector->recv(value);
    } catch (PDNSException &ex) {
-     L<<Logger::Error<<"Exception caught when receiving: "<<ex.reason<<std::endl;
+     L<<Logger::Error<<"Exception caught when receiving: "<<ex.what()<<std::endl;
    } catch (...) {
      L<<Logger::Error<<"Exception caught when receiving"<<std::endl;;
    }

@@ -103,6 +103,6 @@ catch(std::exception &e)
 }
 catch(PDNSException& ae)
 {
-  cerr<<"Fatal 2: "<<ae.reason<<endl;
+  cerr<<"Fatal 2: "<<ae.what()<<endl;
   return 1;
 }

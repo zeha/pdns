@@ -229,7 +229,7 @@ main()
     cout<<"Answered: '"<<reply<<"'"<<endl;
   }
   catch(PDNSException &ae) {
-    cerr<<ae.reason<<endl;
+    cerr<<ae.what()<<endl;
   }
   
 }

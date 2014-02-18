@@ -1776,7 +1776,7 @@ try
   return 0;
 }
 catch(PDNSException& ae) {
-  cerr<<"Error: "<<ae.reason<<endl;
+  cerr<<"Error: "<<ae.what()<<endl;
   return 1;
 }
 catch(std::exception& e) {

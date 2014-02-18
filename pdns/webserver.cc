@@ -292,7 +292,7 @@ catch(SessionTimeoutException &e) {
   // L<<Logger::Error<<"Timeout in webserver"<<endl;
 }
 catch(PDNSException &e) {
-  L<<Logger::Error<<"Exception in webserver: "<<e.reason<<endl;
+  L<<Logger::Error<<"Exception in webserver: "<<e.what()<<endl;
 }
 catch(std::exception &e) {
   L<<Logger::Error<<"STL Exception in webserver: "<<e.what()<<endl;
@@ -310,7 +310,7 @@ WebServer::WebServer(const string &listenaddress, int port, const string &passwo
     d_server = new Server(d_listenaddress, d_port);
   }
   catch(SessionException &e) {
-    L<<Logger::Error<<"Fatal error in webserver: "<<e.reason<<endl;
+    L<<Logger::Error<<"Fatal error in webserver: "<<e.what()<<endl;
     d_server = NULL;
   }
 }
@@ -336,7 +336,7 @@ void WebServer::go()
     //    L<<Logger::Error<<"Timeout in webserver"<<endl;
   }
   catch(PDNSException &e) {
-    L<<Logger::Error<<"Exception in main webserver thread: "<<e.reason<<endl;
+    L<<Logger::Error<<"Exception in main webserver thread: "<<e.what()<<endl;
   }
   catch(std::exception &e) {
     L<<Logger::Error<<"STL Exception in main webserver thread: "<<e.what()<<endl;
@@ -405,7 +405,7 @@ void AsyncWebServer::serveConnection(Session session)
     Utility::setNonBlocking(fd);
   }
   catch(PDNSException &e) {
-    L<<Logger::Error<<"Exception in webserver: "<<e.reason<<endl;
+    L<<Logger::Error<<"Exception in webserver: "<<e.what()<<endl;
   }
   catch(std::exception &e) {
     L<<Logger::Error<<"STL Exception in webserver: "<<e.what()<<endl;

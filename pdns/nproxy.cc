@@ -311,7 +311,7 @@ catch(std::exception& e)
 }
 catch(PDNSException& e)
 {
-  syslogFmt(boost::format("Fatal: %s") % e.reason);
+  syslogFmt(boost::format("Fatal: %s") % e.what());
 }
 
 void daemonize(int null_fd)

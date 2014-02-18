@@ -53,7 +53,7 @@ struct RemotebackendSetup {
                 ::arg().set("remote-dnssec")="yes";
                 be = BackendMakers().all()[0];
 	} catch (PDNSException &ex) {
-		BOOST_TEST_MESSAGE("Cannot start remotebackend: " << ex.reason );
+		BOOST_TEST_MESSAGE("Cannot start remotebackend: " << ex.what() );
 	};
     }
     ~RemotebackendSetup()  {  }

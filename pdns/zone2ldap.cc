@@ -212,7 +212,7 @@ int main( int argc, char* argv[] )
                                 }
                                 catch( PDNSException &ae )
                                 {
-                                        cerr << "Fatal error: " << ae.reason << endl;
+                                        cerr << "Fatal error: " << ae.what() << endl;
                                         if( !args.mustDo( "resume" ) )
                                         {
                                                 return 1;
@@ -237,7 +237,7 @@ int main( int argc, char* argv[] )
         }
         catch( PDNSException &ae )
         {
-                cerr << "Fatal error: " << ae.reason << endl;
+                cerr << "Fatal error: " << ae.what() << endl;
                 return 1;
         }
         catch( std::exception &e )

@@ -696,7 +696,7 @@ void startDoResolve(void *p)
     dc=0;
   }
   catch(PDNSException &ae) {
-    L<<Logger::Error<<"startDoResolve problem"<<loginfo<<": "<<ae.reason<<endl;
+    L<<Logger::Error<<"startDoResolve problem"<<loginfo<<": "<<ae.what()<<endl;
     delete dc;
   }
   catch(MOADNSException& e) {
@@ -1205,7 +1205,7 @@ try
 }
 catch(PDNSException& ae)
 {
-  L<<Logger::Error<<"Fatal error: "<<ae.reason<<endl;
+  L<<Logger::Error<<"Fatal error: "<<ae.what()<<endl;
   throw;
 }
 ;
@@ -1368,7 +1368,7 @@ void handleRCC(int fd, FDMultiplexer::funcparam_t& var)
     L<<Logger::Error<<"Error dealing with control socket request: "<<e.what()<<endl;
   }
   catch(PDNSException& ae) {
-    L<<Logger::Error<<"Error dealing with control socket request: "<<ae.reason<<endl;
+    L<<Logger::Error<<"Error dealing with control socket request: "<<ae.what()<<endl;
   }
 }
 
@@ -1599,7 +1599,7 @@ try
 }
 catch(PDNSException& ae)
 {
-  return new string(ae.reason+"\n");
+  return new string(ae.what()+"\n");
 }
 
 string doTraceRegex(vector<string>::const_iterator begin, vector<string>::const_iterator end)
@@ -1948,7 +1948,7 @@ try
         new RecursorWebServer(t_fdm);
       }
       catch(PDNSException &e) {
-        L<<Logger::Error<<"Exception: "<<e.reason<<endl;
+        L<<Logger::Error<<"Exception: "<<e.what()<<endl;
         exit(99);
       }
     }
@@ -2016,7 +2016,7 @@ try
   }
 }
 catch(PDNSException &ae) {
-  L<<Logger::Error<<"Exception: "<<ae.reason<<endl;
+  L<<Logger::Error<<"Exception: "<<ae.what()<<endl;
   return 0;
 }
 catch(std::exception &e) {
@@ -2154,7 +2154,7 @@ int main(int argc, char **argv)
     serviceMain(argc, argv);
   }
   catch(PDNSException &ae) {
-    L<<Logger::Error<<"Exception: "<<ae.reason<<endl;
+    L<<Logger::Error<<"Exception: "<<ae.what()<<endl;
     ret=EXIT_FAILURE;
   }
   catch(std::exception &e) {

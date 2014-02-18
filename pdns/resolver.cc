@@ -344,7 +344,7 @@ int Resolver::resolve(const string &ipport, const char *domain, int type, Resolv
     return parseResult(mdp, domain, type, id, res);
   }
   catch(ResolverException &re) {
-    throw ResolverException(re.reason+" from "+ipport);
+    throw ResolverException(string(re.what())+" from "+ipport);
   }
   return -1;
 }

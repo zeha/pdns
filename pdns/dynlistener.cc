@@ -342,7 +342,7 @@ void DynListener::theListener()
     }
   }
   catch(PDNSException &AE) {
-    L<<Logger::Error<<"Fatal error in control listener: "<<AE.reason<<endl;
+    L<<Logger::Error<<"Fatal error in control listener: "<<AE.what()<<endl;
   }
   catch(string &E) {
     L<<Logger::Error<<"Fatal error 2 in control listener: "<<E<<endl;

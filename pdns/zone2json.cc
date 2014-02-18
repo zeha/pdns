@@ -215,7 +215,7 @@ try
             if(!::arg().mustDo("on-error-resume-next"))
               throw;
             else
-              cerr<<ae.reason<<endl;
+              cerr<<ae.what()<<endl;
           }
           if(!tick || !((count++)%tick))
             cerr<<"\r"<<count*100/numdomains<<"% done ("<<i->filename<<")\033\133\113";
@@ -240,7 +240,7 @@ try
     
 }
 catch(PDNSException &ae) {
-  cerr<<"\nFatal error: "<<ae.reason<<endl;
+  cerr<<"\nFatal error: "<<ae.what()<<endl;
   return 1;
 }
 catch(std::exception &e) {

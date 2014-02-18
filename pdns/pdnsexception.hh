@@ -23,18 +23,17 @@
 #define PDNSEXCEPTION_HH
 /* (C) 2002 POWERDNS.COM BV */
 
-#include<string>
+#include <string>
+#include <stdexcept>
 
 #include "namespaces.hh"
 
 //! Generic Exception thrown 
-class PDNSException
+class PDNSException : public std::runtime_error
 {
 public:
-  PDNSException(){reason="Unspecified";};
-  PDNSException(string r){reason=r;};
-  
-  string reason; //! Print this to tell the user what went wrong
+  explicit PDNSException() : std::runtime_error("Unspecified") {};
+  explicit PDNSException(string r) : std::runtime_error(r) {};
 };
 
 class TimeoutException : public PDNSException

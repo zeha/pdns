@@ -88,7 +88,7 @@ void CommunicatorClass::queueNotifyDomain(const string &domain, DNSBackend *B)
       hasQueuedItem=true;
     }
     catch(PDNSException &e) {
-      L<<Logger::Warning<<"Unparseable IP in ALSO-NOTIFY metadata of domain '"<<domain<<"'. Warning: "<<e.reason<<endl;
+      L<<Logger::Warning<<"Unparseable IP in ALSO-NOTIFY metadata of domain '"<<domain<<"'. Warning: "<<e.what()<<endl;
     }
   }
 
@@ -204,7 +204,7 @@ time_t CommunicatorClass::doNotifications()
         drillHole(domain, ip);
       }
       catch(ResolverException &re) {
-        L<<Logger::Error<<"Error trying to resolve '"+ip+"' for notifying '"+domain+"' to server: "+re.reason<<endl;
+        L<<Logger::Error<<"Error trying to resolve '"+ip+"' for notifying '"+domain+"' to server: "+re.what()<<endl;
       }
     }
     else

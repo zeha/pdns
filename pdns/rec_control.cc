@@ -97,6 +97,6 @@ try
 }
 catch(PDNSException& ae)
 {
-  cerr<<"Fatal: "<<ae.reason<<"\n";
+  cerr<<"Fatal: "<<ae.what()<<"\n";
   return 1;
 }

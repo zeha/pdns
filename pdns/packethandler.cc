@@ -750,7 +750,7 @@ int PacketHandler::trySuperMasterSynchronous(DNSPacket *p)
     resolver.resolve(p->getRemote(), p->qdomain.c_str(), QType::NS, &nsset);
   }
   catch(ResolverException &re) {
-    L<<Logger::Error<<"Error resolving SOA or NS for "<<p->qdomain<<" at: "<< p->getRemote() <<": "<<re.reason<<endl;
+    L<<Logger::Error<<"Error resolving SOA or NS for "<<p->qdomain<<" at: "<< p->getRemote() <<": "<<re.what()<<endl;
     return RCode::ServFail;
   }
 
@@ -767,7 +767,7 @@ int PacketHandler::trySuperMasterSynchronous(DNSPacket *p)
     db->createSlaveDomain(p->getRemote(), p->qdomain, nameserver, account);
   }
   catch(PDNSException& ae) {
-    L<<Logger::Error<<"Database error trying to create "<<p->qdomain<<" for potential supermaster "<<p->getRemote()<<": "<<ae.reason<<endl;
+    L<<Logger::Error<<"Database error trying to create "<<p->qdomain<<" for potential supermaster "<<p->getRemote()<<": "<<ae.what()<<endl;
     return RCode::ServFail;
   }
   L<<Logger::Warning<<"Created new slave zone '"<<p->qdomain<<"' from supermaster "<<p->getRemote()<<endl;
@@ -1455,13 +1455,13 @@ DNSPacket *PacketHandler::questionOrRecurse(DNSPacket *p, bool *shouldRecurse)
       PC.insert(p, r, r->getMinTTL()); // in the packet cache
   }
   catch(DBException &e) {
-    L<<Logger::Error<<"Backend reported condition which prevented lookup ("+e.reason+") sending out servfail"<<endl;
+    L<<Logger::Error<<"Backend reported condition which prevented lookup ("<<e.what()<<") sending out servfail"<<endl;
     r->setRcode(RCode::ServFail);
     S.inc("servfail-packets");
     S.ringAccount("servfail-queries",p->qdomain);
   }
   catch(PDNSException &e) {
-    L<<Logger::Error<<"Backend reported permanent error which prevented lookup ("+e.reason+") sending out servfail"<<endl;
+    L<<Logger::Error<<"Backend reported permanent error which prevented lookup ("<<e.what()<<") sending out servfail"<<endl;
     throw; // we WANT to die at this point
   }
   catch(std::exception &e) {

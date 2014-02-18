@@ -79,7 +79,7 @@ void CoWrapper::receive(string &line)
       return;
    }
    catch(PDNSException &ae) {
-      L<<Logger::Warning<<kBackendId<<" unable to receive data from coprocess. "<<ae.reason<<endl;
+      L<<Logger::Warning<<kBackendId<<" unable to receive data from coprocess. "<<ae.what()<<endl;
       delete d_cp;
       d_cp=0;
       throw;
@@ -96,7 +96,7 @@ PipeBackend::PipeBackend(const string &suffix)
      d_regexstr=getArg("regex");
    }
    catch(const ArgException &A) {
-      L<<Logger::Error<<kBackendId<<" Fatal argument error: "<<A.reason<<endl;
+      L<<Logger::Error<<kBackendId<<" Fatal argument error: "<<A.what()<<endl;
       throw;
    }
    catch(...) {
@@ -139,7 +139,7 @@ void PipeBackend::lookup(const QType &qtype,const string &qname, DNSPacket *pkt_
       }
    }
    catch(PDNSException &ae) {
-      L<<Logger::Error<<kBackendId<<" Error from coprocess: "<<ae.reason<<endl;
+      L<<Logger::Error<<kBackendId<<" Error from coprocess: "<<ae.what()<<endl;
       throw; // hop
    }
    d_qtype=qtype;
@@ -160,7 +160,7 @@ bool PipeBackend::list(const string &target, int inZoneId, bool include_disabled
       d_coproc->send(query.str());
    }
    catch(PDNSException &ae) {
-      L<<Logger::Error<<kBackendId<<" Error from coprocess: "<<ae.reason<<endl;
+      L<<Logger::Error<<kBackendId<<" Error from coprocess: "<<ae.what()<<endl;
       throw;
    }
    d_qname=itoa(inZoneId);

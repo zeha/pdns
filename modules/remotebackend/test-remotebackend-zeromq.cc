@@ -57,7 +57,7 @@ struct RemotebackendSetup {
 		NSRecordContent::report();
                 ARecordContent::report();
 	} catch (PDNSException &ex) {
-		BOOST_TEST_MESSAGE("Cannot start remotebackend: " << ex.reason );
+		BOOST_TEST_MESSAGE("Cannot start remotebackend: " << ex.what() );
 	};
     }
     ~RemotebackendSetup()  {  }

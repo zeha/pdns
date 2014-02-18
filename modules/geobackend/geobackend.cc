@@ -381,7 +381,7 @@ void GeoBackend::loadIPLocationMap() {
         	}
         	catch(ParsePrefixException &e) {
         		L << Logger::Warning << logprefix << "Error while parsing prefix at line "
-        			<< linenr << ": " << e.reason << endl;
+        			<< linenr << ": " << e.what() << endl;
         	}
         }
         ifs.close();
@@ -468,7 +468,7 @@ void GeoBackend::loadDirectorMaps(const vector<GeoRecord*> &newgrs) {
         	}
         	catch(PDNSException &e) {
         		L << Logger::Error << logprefix << "Error occurred while reading director file "
-        			<< gr->directorfile << ": " << e.reason << endl;
+        			<< gr->directorfile << ": " << e.what() << endl;
         		delete gr;
         	}
         }

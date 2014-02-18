@@ -716,7 +716,7 @@ void Bind2Backend::loadConfig(string* status)
       BP.parse(getArg("config"));
     }
     catch(PDNSException &ae) {
-      L<<Logger::Error<<"Error parsing bind configuration: "<<ae.reason<<endl;
+      L<<Logger::Error<<"Error parsing bind configuration: "<<ae.what()<<endl;
       throw;
     }
       
@@ -793,7 +793,7 @@ void Bind2Backend::loadConfig(string* status)
           }
           catch(PDNSException &ae) {
             ostringstream msg;
-            msg<<" error at "+nowTime()+" parsing '"<<i->name<<"' from file '"<<i->filename<<"': "<<ae.reason;
+            msg<<" error at "+nowTime()+" parsing '"<<i->name<<"' from file '"<<i->filename<<"': "<<ae.what();
 
             if(status)
               *status+=msg.str();
@@ -907,7 +907,7 @@ void Bind2Backend::queueReload(BB2DomainInfo *bbd)
   }
   catch(PDNSException &ae) {
     ostringstream msg;
-    msg<<" error at "+nowTime()+" parsing '"<<bbd->d_name<<"' from file '"<<bbd->d_filename<<"': "<<ae.reason;
+    msg<<" error at "+nowTime()+" parsing '"<<bbd->d_name<<"' from file '"<<bbd->d_filename<<"': "<<ae.what();
     bbd->d_status=msg.str();
   }
   catch(std::exception &ae) {

@@ -68,7 +68,7 @@ void CommunicatorClass::go()
     d_onlyNotify.toMasks(::arg()["only-notify"]);
   }
   catch(PDNSException &e) {
-    L<<Logger::Error<<"Unparseable IP in only-notify. Error: "<<e.reason<<endl;
+    L<<Logger::Error<<"Unparseable IP in only-notify. Error: "<<e.what()<<endl;
     exit(0);
   }
 
@@ -80,7 +80,7 @@ void CommunicatorClass::go()
       d_alsoNotify.insert(caIp.toStringWithPort());
     }
     catch(PDNSException &e) {
-      L<<Logger::Error<<"Unparseable IP in also-notify. Error: "<<e.reason<<endl;
+      L<<Logger::Error<<"Unparseable IP in also-notify. Error: "<<e.what()<<endl;
       exit(0);
     }
   }
@@ -121,7 +121,7 @@ void CommunicatorClass::mainloop(void)
     }
   }
   catch(PDNSException &ae) {
-    L<<Logger::Error<<"Exiting because communicator thread died with error: "<<ae.reason<<endl;
+    L<<Logger::Error<<"Exiting because communicator thread died with error: "<<ae.what()<<endl;
     Utility::sleep(1);
     exit(0);
   }

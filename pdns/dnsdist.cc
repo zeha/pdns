@@ -557,5 +557,5 @@ catch(std::exception &e)
 }
 catch(PDNSException &ae)
 {
-  errlog("Fatal: %s", ae.reason);
+  errlog("Fatal: %s", ae.what());
 }

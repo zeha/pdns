@@ -80,7 +80,7 @@ static void apiServerConfigAllowFrom(HttpRequest* req, HttpResponse* resp)
       try {
         Netmask(jlist[i].GetString());
       } catch (NetmaskException &e) {
-        throw ApiException(e.reason);
+        throw ApiException(e.what());
       }
     }
 

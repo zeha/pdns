@@ -912,12 +912,12 @@ int PacketHandler::processUpdate(DNSPacket *p) {
     return RCode::ServFail;
   }
   catch (DBException &e) {
-    L<<Logger::Error<<msgPrefix<<"Caught DBException: "<<e.reason<<"; Sending ServFail!"<<endl;
+    L<<Logger::Error<<msgPrefix<<"Caught DBException: "<<e.what()<<"; Sending ServFail!"<<endl;
     di.backend->abortTransaction();
     return RCode::ServFail;
   }
   catch (PDNSException &e) {
-    L<<Logger::Error<<msgPrefix<<"Caught PDNSException: "<<e.reason<<"; Sending ServFail!"<<endl;
+    L<<Logger::Error<<msgPrefix<<"Caught PDNSException: "<<e.what()<<"; Sending ServFail!"<<endl;
     di.backend->abortTransaction();
     return RCode::ServFail;
   }

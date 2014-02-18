@@ -661,8 +661,8 @@ string RecursorControlParser::getAnswer(const string& question, RecursorControlP
     }
     catch(PDNSException& ae)
     {
-      L<<Logger::Error<<"reloading ACLs failed (PDNSException: "<<ae.reason<<")"<<endl;
-      return ae.reason + string("\n");
+      L<<Logger::Error<<"reloading ACLs failed (PDNSException: "<<ae.what()<<")"<<endl;
+      return ae.what() + string("\n");
     }
     return "ok\n";
   }

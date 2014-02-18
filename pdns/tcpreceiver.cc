@@ -73,7 +73,7 @@ void TCPNameserver::go()
   }
   catch(PDNSException &ae) {
     L<<Logger::Error<<Logger::NTLog<<"TCP server is unable to launch backends - will try again when questions come in"<<endl;
-    L<<Logger::Error<<"TCP server is unable to launch backends - will try again when questions come in: "<<ae.reason<<endl;
+    L<<Logger::Error<<"TCP server is unable to launch backends - will try again when questions come in: "<<ae.what()<<endl;
   }
   pthread_create(&d_tid, 0, launcher, static_cast<void *>(this));
 }
@@ -366,7 +366,7 @@ void *TCPNameserver::doConnection(void *data)
     Lock l(&s_plock);
     delete s_P;
     s_P = 0; // on next call, backend will be recycled
-    L<<Logger::Error<<"TCP nameserver had error, cycling backend: "<<ae.reason<<endl;
+    L<<Logger::Error<<"TCP nameserver had error, cycling backend: "<<ae.what()<<endl;
   }
   catch(NetworkError &e) {
     L<<Logger::Info<<"TCP Connection Thread died because of network error: "<<e.what()<<endl;
@@ -1122,7 +1122,7 @@ void TCPNameserver::thread()
     }
   }
   catch(PDNSException &AE) {
-    L<<Logger::Error<<"TCP Nameserver thread dying because of fatal error: "<<AE.reason<<endl;
+    L<<Logger::Error<<"TCP Nameserver thread dying because of fatal error: "<<AE.what()<<endl;
   }
   catch(...) {
     L<<Logger::Error<<"TCPNameserver dying because of an unexpected fatal error"<<endl;
