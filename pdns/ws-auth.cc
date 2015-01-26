@@ -389,7 +389,7 @@ static void gatherRecords(const Value& container, vector<DNSResourceRecord>& new
     for (SizeType idx = 0; idx < records.Size(); ++idx) {
       const Value& record = records[idx];
       rr.qname = stringFromJson(record, "name");
-      rr.qtype = toUpper(stringFromJson(record, "type"));
+      rr.qtype = stringFromJson(record, "type");
       rr.content = stringFromJson(record, "content");
       rr.auth = 1;
       rr.ttl = intFromJson(record, "ttl");
@@ -429,7 +429,7 @@ static void gatherComments(const Value& container, vector<Comment>& new_comments
   Comment c;
   if (use_name_type_from_container) {
     c.qname = stringFromJson(container, "name");
-    c.qtype = toUpper(stringFromJson(container, "type"));
+    c.qtype = stringFromJson(container, "type");
   }
 
   time_t now = time(0);
@@ -439,7 +439,7 @@ static void gatherComments(const Value& container, vector<Comment>& new_comments
       const Value& comment = comments[idx];
       if (!use_name_type_from_container) {
         c.qname = stringFromJson(comment, "name");
-        c.qtype = toUpper(stringFromJson(comment, "type"));
+        c.qtype = stringFromJson(comment, "type");
       }
       c.modified_at = intFromJson(comment, "modified_at", now);
       c.content = stringFromJson(comment, "content");
@@ -920,7 +920,7 @@ static void patchZone(HttpRequest* req, HttpResponse* resp) {
       string qname, changetype;
       QType qtype;
       qname = stringFromJson(rrset, "name");
-      qtype = toUpper(stringFromJson(rrset, "type"));
+      qtype = stringFromJson(rrset, "type");
       changetype = toUpper(stringFromJson(rrset, "changetype"));
 
       if (!iends_with(qname, dotsuffix) && !pdns_iequals(qname, zonename))
