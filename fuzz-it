@@ -1,0 +1,3 @@
+#!/bin/sh
+set -ex
+exec afl-fuzz -t 20000 -i testcase_dir -o findings_dir -- ./pdns/pdns_server -- --daemon=no --local-port=5301 --socket-dir=./ --module-dir=../regression-tests/modules --launch=gsqlite3 --gsqlite3-database=pdns.sqlite3 --cache-ttl=0 --no-config --loglevel=7777
