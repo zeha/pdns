@@ -49,19 +49,21 @@ void Logger::log(const string &msg, Urgency u)
   time(&t);
   tm=*localtime(&t);
 
-  if(u<=consoleUrgency) {
+  if(1) {//u<=consoleUrgency) {
     char buffer[50];
     strftime(buffer,sizeof(buffer),"%b %d %H:%M:%S ", &tm);
     static pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
     Lock l(&m); // the C++-2011 spec says we need this, and OSX actually does
     clog << string(buffer) + msg <<endl;
   }
+#if 0
   if( u <= d_loglevel ) {
 #ifndef RECURSOR
     S.ringAccount("logmessages",msg);
 #endif
     syslog(u,"%s",msg.c_str());
   }
+#endif
 }
 
 void Logger::setLoglevel( Urgency u )

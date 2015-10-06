@@ -471,7 +471,7 @@ void mainthread()
 
    DNSPacket::s_udpTruncationThreshold = std::max(512, ::arg().asNum("udp-truncation-threshold"));
    DNSPacket::s_doEDNSSubnetProcessing = ::arg().mustDo("edns-subnet-processing");
-
+#if 0
    secPollParseResolveConf();
 
    if(!::arg()["chroot"].empty()) {  
@@ -491,14 +491,14 @@ void mainthread()
 
   AuthWebServer webserver;
   Utility::dropUserPrivs(newuid);
-
+#endif
   // We need to start the Recursor Proxy before doing secpoll, see issue #2453
   if(::arg().mustDo("recursor")){
     DP=new DNSProxy(::arg()["recursor"]);
     DP->onlyFrom(::arg()["allow-recursion"]);
     DP->go();
   }
-
+#if 0
   try {
     doSecPoll(true);
   }
@@ -519,7 +519,11 @@ void mainthread()
     LPE=new AuthLua(::arg()["experimental-lua-policy-script"]);
     L<<Logger::Warning<<"Loaded Lua policy script "<<::arg()["experimental-lua-policy-script"]<<endl;
   }
-
+#endif
+  TN->fuzzedAccept(STDIN_FILENO);
+  L<<Logger::Error<<"doConnection done"<<endl;
+  exit(0);
+#if 0
   if(TN)
     TN->go(); // tcp nameserver launch
 
@@ -540,6 +544,7 @@ void mainthread()
   }
   
   L<<Logger::Error<<"Mainthread exiting - should never happen"<<endl;
+#endif
 }
 
 

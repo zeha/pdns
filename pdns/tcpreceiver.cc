@@ -89,6 +89,41 @@ void *TCPNameserver::launcher(void *data)
 }
 
 // throws PDNSException if things didn't go according to plan, returns 0 if really 0 bytes were read
+int readMaxWithTimeout(int fd, void* buffer, unsigned int n)
+{
+  unsigned int bytes=n;
+  char *ptr = (char*)buffer;
+  int ret;
+  while(bytes) {
+    printf("have %d bytes\n", n-bytes);
+    ret=read(fd, ptr, bytes);
+    if(ret < 0) {
+      if(errno==EAGAIN) {
+        ret=waitForData(fd, 5);
+        if(ret < 0)
+          throw NetworkError("Waiting for data read");
+        if(!ret)
+          throw NetworkError("Timeout reading data");
+        continue;
+      }
+      else
+        throw NetworkError("Reading data: "+stringerror());
+    }
+    if(!ret) {
+      if(bytes != n)
+        return n-bytes;
+      else
+        throw NetworkError("readMaxWithTimeout Did not fulfill read from TCP due to EOF");
+    }
+    
+    ptr += ret;
+    bytes -= ret;
+  }
+  return n-bytes;
+}
+
+
+// throws PDNSException if things didn't go according to plan, returns 0 if really 0 bytes were read
 int readnWithTimeout(int fd, void* buffer, unsigned int n, bool throwOnEOF=true)
 {
   unsigned int bytes=n;
@@ -248,12 +283,17 @@ static void incTCPAnswerCount(const ComboAddress& remote)
   else
     S.inc("tcp4-answers");
 }
+
+void TCPNameserver::fuzzedAccept(int fd) {
+  doConnection((void*)fd);
+}
+
 void *TCPNameserver::doConnection(void *data)
 {
   shared_ptr<DNSPacket> packet;
   // Fix gcc-4.0 error (on AMD64)
   int fd=(int)(long)data; // gotta love C (generates a harmless warning on opteron)
-  pthread_detach(pthread_self());
+//  pthread_detach(pthread_self());
   setNonBlocking(fd);
   try {
     int mesgsize=65535;
@@ -261,20 +301,23 @@ void *TCPNameserver::doConnection(void *data)
     
     DLOG(L<<"TCP Connection accepted on fd "<<fd<<endl);
     bool logDNSQueries= ::arg().mustDo("log-dns-queries");
-    for(;;) {
-      ComboAddress remote;
-      socklen_t remotelen=sizeof(remote);
-      if(getpeername(fd, (struct sockaddr *)&remote, &remotelen) < 0) {
-        L<<Logger::Warning<<"Received question from socket which had no remote address, dropping ("<<stringerror()<<")"<<endl;
-        break;
-      }
+    int numqs;
+    for(numqs = 0; numqs < 1; numqs++) {
+      ComboAddress remote("1.2.3.4");
+//      socklen_t remotelen=sizeof(remote);
+//      if(getpeername(fd, (struct sockaddr *)&remote, &remotelen) < 0) {
+//        L<<Logger::Warning<<"Received question from socket which had no remote address, dropping ("<<stringerror()<<")"<<endl;
+//        break;
+//      }
 
       uint16_t pktlen;
+#if 0
       if(!readnWithTimeout(fd, &pktlen, 2, false))
         break;
       else
         pktlen=ntohs(pktlen);
 
+        L<<Logger::Warning<<"pktlen is"<<pktlen<<endl;
       // this check will always be false *if* no one touches
       // the mesg array. pktlen can be maximum of 65535 as
       // it is 2 byte unsigned variable. In getQuestion, we 
@@ -286,20 +329,26 @@ void *TCPNameserver::doConnection(void *data)
         L<<Logger::Warning<<"Received an overly large question from "<<remote.toString()<<", dropping"<<endl;
         break;
       }
-      
-      getQuestion(fd, mesg.get(), pktlen, remote);
+#endif
+
+      pktlen = readMaxWithTimeout(fd, mesg.get(), mesgsize);
+      //getQuestion(fd, mesg.get(), pktlen, remote);
+        L<<Logger::Warning<<"getQ done, pktlen="<<pktlen<<endl;
+#if 0
       S.inc("tcp-queries");      
       if(remote.sin4.sin_family == AF_INET6)
         S.inc("tcp6-queries");
       else
         S.inc("tcp4-queries");
-
+#endif
       packet=shared_ptr<DNSPacket>(new DNSPacket);
       packet->setRemote(&remote);
       packet->d_tcp=true;
-      packet->setSocket(fd);
-      if(packet->parse(mesg.get(), pktlen)<0)
+      packet->setSocket(STDOUT_FILENO);
+      if(packet->parse(mesg.get(), pktlen)<0) {
+          L<<"parse failed"<<endl;
         break;
+      }
       
       if(packet->qtype.getCode()==QType::AXFR) {
         if(doAXFR(packet->qdomain, packet, fd))
@@ -325,7 +374,6 @@ void *TCPNameserver::doConnection(void *data)
         "', do = " <<packet->d_dnssecOk <<", bufsize = "<< packet->getMaxReplyLen()<<": ";
       }
 
-
       if(!packet->d.rd && packet->couldBeCached() && PC.get(packet.get(), cached.get(), false)) { // short circuit - does the PacketCache recognize this question?
         if(logDNSQueries)
           L<<"packetcache HIT"<<endl;
@@ -350,11 +398,14 @@ void *TCPNameserver::doConnection(void *data)
         bool shouldRecurse;
 
         reply=shared_ptr<DNSPacket>(s_P->questionOrRecurse(packet.get(), &shouldRecurse)); // we really need to ask the backend :-)
+    DLOG(L<<"qOR done"<<endl);
 
         if(LPE) LPE->police(&(*packet), &(*reply), true);
+    DLOG(L<<"LPE done"<<endl);
 
         if(shouldRecurse) {
           proxyQuestion(packet);
+    DLOG(L<<"proxyQuestion done"<<endl);
           continue;
         }
       }
@@ -362,9 +413,10 @@ void *TCPNameserver::doConnection(void *data)
       if(!reply)  // unable to write an answer?
         break;
 
-      sendPacket(reply, fd);
+      sendPacket(reply, STDOUT_FILENO);
     }
   }
+#if 0
   catch(DBException &e) {
     Lock l(&s_plock);
     delete s_P;
@@ -378,19 +430,21 @@ void *TCPNameserver::doConnection(void *data)
     s_P = 0; // on next call, backend will be recycled
     L<<Logger::Error<<"TCP nameserver had error, cycling backend: "<<ae.reason<<endl;
   }
+#endif
   catch(NetworkError &e) {
     L<<Logger::Info<<"TCP Connection Thread died because of network error: "<<e.what()<<endl;
   }
-
+#if 0
   catch(std::exception &e) {
     L<<Logger::Error<<"TCP Connection Thread died because of STL error: "<<e.what()<<endl;
   }
-  catch( ... )
-  {
-    L << Logger::Error << "TCP Connection Thread caught unknown exception." << endl;
-  }
+#endif
+  //catch( ... )
+  //{
+  //  L << Logger::Error << "TCP Connection Thread caught unknown exception." << endl;
+  //}
   d_connectionroom_sem->post();
-  closesocket(fd);
+  //closesocket(fd);
 
   return 0;
 }

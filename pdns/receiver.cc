@@ -537,7 +537,7 @@ int main(int argc, char **argv)
       if(!isGuarded(argv))
         daemonize();
     }
-
+#if 0
     if(isGuarded(argv)) {
       L<<Logger::Warning<<"This is a guarded instance of pdns"<<endl;
       dl=new DynListener; // listens on stdin 
@@ -577,7 +577,7 @@ int main(int argc, char **argv)
       DynListener* dlTCP=new DynListener(ComboAddress(::arg()["tcp-control-address"], ::arg().asNum("tcp-control-port")));
       dlTCP->go();
     }
-
+#endif
     // reparse, with error checking
     if(!::arg().mustDo("no-config"))
       ::arg().file(configname.c_str());
@@ -590,7 +590,7 @@ int main(int argc, char **argv)
     }
 
     UeberBackend::go();
-    N=new UDPNameserver; // this fails when we are not root, throws exception
+    //N=new UDPNameserver; // this fails when we are not root, throws exception
     
     if(!::arg().mustDo("disable-tcp"))
       TN=new TCPNameserver; 
@@ -603,7 +603,7 @@ int main(int argc, char **argv)
   declareStats();
   DLOG(L<<Logger::Warning<<"Verbose logging in effect"<<endl);
 
-  showProductVersion();
+  //showProductVersion();
 
   try {
     mainthread();

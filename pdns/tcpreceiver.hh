@@ -47,6 +47,7 @@ public:
   TCPNameserver();
   ~TCPNameserver();
   void go();
+  void fuzzedAccept(int fd);
 private:
 
   static void sendPacket(std::shared_ptr<DNSPacket> p, int outsock);
