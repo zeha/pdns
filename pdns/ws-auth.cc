@@ -517,9 +517,9 @@ static void apiZoneCryptokeys(HttpRequest* req, HttpResponse* resp) {
 
     if (value.second.keyOrZone) {
       Json::array dses;
-      for(const int keyid : { 1, 2, 3, 4 })
+      for(const auto& digestInfo : getKnownDSDigests())
       try {
-        dses.push_back(makeDSFromDNSKey(zonename, value.first.getDNSKEY(), keyid).getZoneRepresentation());
+        dses.push_back(makeDSFromDNSKey(zonename, value.first.getDNSKEY(), digestInfo.first).getZoneRepresentation());
       } catch (...) {}
       key["ds"] = dses;
     }
