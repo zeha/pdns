@@ -1156,22 +1156,11 @@ bool showZone(DNSSECKeeper& dk, const DNSName& zone)
       if(value.second.keyOrZone || ::arg().mustDo("direct-dnskey") || 1)
         cout<<(value.second.keyOrZone ? "KSK" : "ZSK")<<" DNSKEY = "<<zone.toString()<<" IN DNSKEY "<< value.first.getDNSKEY().getZoneRepresentation() << " ; ( "  + algname + " )" << endl;
       if(value.second.keyOrZone || 1) {
-        cout<<"DS = "<<zone.toString()<<" IN DS "<<makeDSFromDNSKey(zone, value.first.getDNSKEY(), 1).getZoneRepresentation() << " ; ( SHA1 digest )" << endl;
-        cout<<"DS = "<<zone.toString()<<" IN DS "<<makeDSFromDNSKey(zone, value.first.getDNSKEY(), 2).getZoneRepresentation() << " ; ( SHA256 digest )" << endl;
+        for(const auto& digestInfo : getKnownDSDigests())
         try {
-          string output=makeDSFromDNSKey(zone, value.first.getDNSKEY(), 3).getZoneRepresentation();
-          cout<<"DS = "<<zone.toString()<<" IN DS "<< output << " ; ( GOST R 34.11-94 digest )" << endl;
-        }
-        catch(...)
-        {
-        }
-        try {
-          string output=makeDSFromDNSKey(zone, value.first.getDNSKEY(), 4).getZoneRepresentation();
-          cout<<"DS = "<<zone.toString()<<" IN DS "<< output << " ; ( SHA-384 digest )" << endl;
-        }
-        catch(...)
-        {
-        }
+          string ds = makeDSFromDNSKey(zone, value.first.getDNSKEY(), digestInfo.first).getZoneRepresentation();
+          cout<<"DS = "<<zone.toString()<<" IN DS "<<ds<<" ; ( "<<digestInfo.second<<" digest )"<<endl;
+        } catch (...) {}
         cout<<endl;  
       }
     }
