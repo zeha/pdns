@@ -326,6 +326,22 @@ string getMessageForRRSET(const DNSName& qname, const RRSIGRecordContent& rrc, v
   return toHash;
 }
 
+/**
+ * Returns all known DS digests as a pair, where first is the PowerDNS digest id,
+ * and second is the digest name (for user presentation).
+ * Not all digests are necessarily supported by the running pdns_server binary.
+ *
+ * @return        pair<internal digest id, user presentation name>
+ */
+std::vector<std::pair<int, std::string> > getKnownDSDigests() {
+  return {
+    { 1, "SHA1" },
+    { 2, "SHA256" },
+    { 3, "GOST" },
+    { 4, "ECDSAP384" },
+  };
+}
+
 DSRecordContent makeDSFromDNSKey(const DNSName& qname, const DNSKEYRecordContent& drc, int digest)
 {
   string toHash;

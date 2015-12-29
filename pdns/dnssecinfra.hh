@@ -112,6 +112,7 @@ bool sharedDNSSECCompare(const std::shared_ptr<DNSRecordContent>& a, const share
 string getMessageForRRSET(const DNSName& qname, const RRSIGRecordContent& rrc, std::vector<std::shared_ptr<DNSRecordContent> >& signRecords);
 
 DSRecordContent makeDSFromDNSKey(const DNSName& qname, const DNSKEYRecordContent& drc, int digest=1);
+std::vector<std::pair<int, std::string> > getKnownDSDigests();
 
 
 class RSAContext;
