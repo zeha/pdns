@@ -2003,16 +2003,16 @@ seedRandom(::arg()["entropy-source"]);
     
     if(cmds.size() > 4) {
       if(pdns_iequals(cmds[4], "ZSK"))
-        dpk.d_flags = 256;
+        dpk.d_flags = DNSSECPrivateKey::ZSK;
       else if(pdns_iequals(cmds[4], "KSK"))
-        dpk.d_flags = 257;
+        dpk.d_flags = DNSSECPrivateKey::KSK;
       else {
         cerr<<"Unknown key flag '"<<cmds[4]<<"'"<<endl;
         exit(1);
       }
     }
     else
-      dpk.d_flags = 257; // ksk
+      dpk.d_flags = DNSSECPrivateKey::KSK;
       
     if(!dk.addKey(DNSName(zone), dpk)) {
       cerr<<"Adding key failed, perhaps DNSSEC not enabled in configuration?"<<endl;
@@ -2036,14 +2036,14 @@ seedRandom(::arg()["entropy-source"]);
     if(dpk.d_algorithm == 7)
       dpk.d_algorithm = 5;
     
-    dpk.d_flags = 257; 
+    dpk.d_flags = DNSSECPrivateKey::KSK;
     bool active=true;
 
     for(unsigned int n = 3; n < cmds.size(); ++n) {
       if(pdns_iequals(cmds[n], "ZSK"))
-        dpk.d_flags = 256;
+        dpk.d_flags = DNSSECPrivateKey::ZSK;
       else if(pdns_iequals(cmds[n], "KSK"))
-        dpk.d_flags = 257;
+        dpk.d_flags = DNSSECPrivateKey::KSK;
       else if(pdns_iequals(cmds[n], "active"))
         active = 1;
       else if(pdns_iequals(cmds[n], "passive") || pdns_iequals(cmds[n], "inactive")) // passive eventually needs to be removed
@@ -2068,7 +2068,7 @@ seedRandom(::arg()["entropy-source"]);
     unsigned int id=pdns_stou(cmds[2]);
     DNSSECPrivateKey dpk=dk.getKeyById(zone, id);
     cout << zone<<" IN DNSKEY "<<dpk.getDNSKEY().getZoneRepresentation() <<endl;
-    if(dpk.d_flags == 257) {
+    if(dpk.d_flags == DNSSECPrivateKey::KSK) {
       cout << zone << " IN DS "<<makeDSFromDNSKey(zone, dpk.getDNSKEY(), 1).getZoneRepresentation() << endl;
       cout << zone << " IN DS "<<makeDSFromDNSKey(zone, dpk.getDNSKEY(), 2).getZoneRepresentation() << endl;
     }
@@ -2119,7 +2119,7 @@ seedRandom(::arg()["entropy-source"]);
     dpk->create(bits); 
     dspk.setKey(dpk); 
     dspk.d_algorithm = algorithm; 
-    dspk.d_flags = keyOrZone ? 257 : 256; 
+    dspk.d_flags = keyOrZone ? DNSSECPrivateKey::KSK : DNSSECPrivateKey::ZSK;
 
     // print key to stdout 
     cout << "Flags: " << dspk.d_flags << endl << 
@@ -2369,7 +2369,7 @@ seedRandom(::arg()["entropy-source"]);
 
      DNSKEYRecordContent drc; 
      DNSSECPrivateKey dpk;
-     dpk.d_flags = (keyOrZone ? 257 : 256);
+     dpk.d_flags = (keyOrZone ? DNSSECPrivateKey::KSK : DNSSECPrivateKey::ZSK);
      dpk.setKey(shared_ptr<DNSCryptoKeyEngine>(DNSCryptoKeyEngine::makeFromISCString(drc, iscString.str())));
  
      // make sure this key isn't being reused.

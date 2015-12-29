@@ -94,7 +94,7 @@ bool DNSSECKeeper::addKey(const DNSName& name, bool keyOrZone, int algorithm, in
   dpk->create(bits);
   dspk.setKey(dpk);
   dspk.d_algorithm = algorithm;
-  dspk.d_flags = keyOrZone ? 257 : 256;
+  dspk.d_flags = keyOrZone ? DNSSECPrivateKey::KSK : DNSSECPrivateKey::ZSK;
   return addKey(name, dspk, active);
 }
 
@@ -409,7 +409,7 @@ DNSSECKeeper::keyset_t DNSSECKeeper::getKeys(const DNSName& zone, boost::tribool
     KeyMetaData kmd;
 
     kmd.active = kd.active;
-    kmd.keyOrZone = (kd.flags == 257);
+    kmd.keyOrZone = (kd.flags == DNSSECPrivateKey::KSK);
     kmd.id = kd.id;
     
     if(boost::indeterminate(allOrKeyOrZone) || allOrKeyOrZone == kmd.keyOrZone)

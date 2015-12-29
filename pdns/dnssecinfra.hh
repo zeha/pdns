@@ -84,6 +84,8 @@ struct DNSSECPrivateKey
   }
   DNSKEYRecordContent getDNSKEY() const;
 
+  enum {ZSK=256, KSK=257};
+
   uint16_t d_flags;
   uint8_t d_algorithm;
 
