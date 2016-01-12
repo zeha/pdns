@@ -217,8 +217,10 @@ static void connectionThread(int sock, ComboAddress remote, string password)
       resp.status=404;
     }
 
-    if(!callback.empty()) {
+    if (resp.headers["Content-Type"] == "application/json" && !callback.empty()) {
+      // JSONP support, in a hackish way.
       resp.body = callback + "(" + resp.body + ");";
+      resp.headers["Content-Type"] = "application/javascript";
     }
 
     std::ostringstream ofs;
