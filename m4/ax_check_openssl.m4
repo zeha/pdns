@@ -106,7 +106,7 @@ AC_DEFUN([AX_CHECK_OPENSSL], [
     LIBS="$OPENSSL_LIBS $LIBS"
     CPPFLAGS="$OPENSSL_INCLUDES $CPPFLAGS"
     AC_LINK_IFELSE(
-        [AC_LANG_PROGRAM([#include <openssl/crypto.h>], [CRYPTO_free(NULL)])],
+        [AC_LANG_PROGRAM([#include <openssl/crypto.h>], [CRYPTO_malloc(1, "conftest", 0)])],
         [
             AC_MSG_RESULT([yes])
             openssl_ecdsa=yes
