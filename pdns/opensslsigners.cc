@@ -160,14 +160,18 @@ DNSCryptoKeyEngine::storvector_t OpenSSLRSADNSCryptoKeyEngine::convertToISCVecto
   storvector_t storvect;
   typedef vector<pair<string, const BIGNUM*> > outputs_t;
   outputs_t outputs;
-  outputs.push_back(make_pair("Modulus", d_key->n));
-  outputs.push_back(make_pair("PublicExponent",d_key->e));
-  outputs.push_back(make_pair("PrivateExponent",d_key->d));
-  outputs.push_back(make_pair("Prime1",d_key->p));
-  outputs.push_back(make_pair("Prime2",d_key->q));
-  outputs.push_back(make_pair("Exponent1",d_key->dmp1));
-  outputs.push_back(make_pair("Exponent2",d_key->dmq1));
-  outputs.push_back(make_pair("Coefficient",d_key->iqmp));
+  const BIGNUM *n, *e, *d, *p, *q, *dmp1, *dmq1, *iqmp;
+  RSA_get0_key(d_key, &n, &e, &d);
+  RSA_get0_factors(d_key, &p, &q);
+  RSA_get0_crt_params(d_key, &dmp1, &dmq1, &iqmp);
+  outputs.push_back(make_pair("Modulus", n));
+  outputs.push_back(make_pair("PublicExponent", e));
+  outputs.push_back(make_pair("PrivateExponent", d));
+  outputs.push_back(make_pair("Prime1", p));
+  outputs.push_back(make_pair("Prime2", q));
+  outputs.push_back(make_pair("Exponent1", dmp1));
+  outputs.push_back(make_pair("Exponent2", dmq1));
+  outputs.push_back(make_pair("Coefficient", iqmp));
 
   string algorithm=std::to_string(d_algorithm);
   switch(d_algorithm) {
@@ -265,7 +269,9 @@ bool OpenSSLRSADNSCryptoKeyEngine::verify(const std::string& msg, const std::str
 
 std::string OpenSSLRSADNSCryptoKeyEngine::getPubKeyHash() const
 {
-  unsigned char tmp[std::max(BN_num_bytes(d_key->e), BN_num_bytes(d_key->n))];
+  const BIGNUM *e, *n, *d;
+  RSA_get0_key(d_key, &e, &n, &d);
+  unsigned char tmp[std::max(BN_num_bytes(e), BN_num_bytes(n))];
   unsigned char hash[SHA_DIGEST_LENGTH];
   SHA_CTX ctx;
 
@@ -275,13 +281,13 @@ std::string OpenSSLRSADNSCryptoKeyEngine::getPubKeyHash() const
     throw runtime_error(getName()+" failed to init hash context for generating the public key hash");
   }
 
-  int len = BN_bn2bin(d_key->e, tmp);
+  int len = BN_bn2bin(e, tmp);
   res = SHA1_Update(&ctx, tmp, len);
   if (res != 1) {
     throw runtime_error(getName()+" failed to update hash context for generating the public key hash");
   }
 
-  len = BN_bn2bin(d_key->n, tmp);
+  len = BN_bn2bin(n, tmp);
   res = SHA1_Update(&ctx, tmp, len);
   if (res != 1) {
     throw runtime_error(getName()+" failed to update hash context for generating the public key hash");
@@ -298,10 +304,12 @@ std::string OpenSSLRSADNSCryptoKeyEngine::getPubKeyHash() const
 
 std::string OpenSSLRSADNSCryptoKeyEngine::getPublicKeyString() const
 {
+  const BIGNUM *e, *n, *d;
+  RSA_get0_key(d_key, &e, &n, &d);
   string keystring;
-  unsigned char tmp[std::max(BN_num_bytes(d_key->e), BN_num_bytes(d_key->n))];
+  unsigned char tmp[std::max(BN_num_bytes(e), BN_num_bytes(n))];
 
-  int len = BN_bn2bin(d_key->e, tmp);
+  int len = BN_bn2bin(e, tmp);
   if (len < 255) {
     keystring.assign(1, (char) (unsigned int) len);
   } else {
@@ -312,7 +320,7 @@ std::string OpenSSLRSADNSCryptoKeyEngine::getPublicKeyString() const
   }
   keystring.append((char *) tmp, len);
 
-  len = BN_bn2bin(d_key->n, tmp);
+  len = BN_bn2bin(n, tmp);
   keystring.append((char *) tmp, len);
 
   return keystring;
@@ -328,6 +336,7 @@ void OpenSSLRSADNSCryptoKeyEngine::fromISCMap(DNSKEYRecordContent& drc, std::map
     throw runtime_error(getName()+" allocation of key structure failed");
   }
 
+#if OPENSSL_VERSION_NUMBER < 0x01010000
   places["Modulus"]=&key->n;
   places["PublicExponent"]=&key->e;
   places["PrivateExponent"]=&key->d;
@@ -336,6 +345,25 @@ void OpenSSLRSADNSCryptoKeyEngine::fromISCMap(DNSKEYRecordContent& drc, std::map
   places["Exponent1"]=&key->dmp1;
   places["Exponent2"]=&key->dmq1;
   places["Coefficient"]=&key->iqmp;
+#else
+  BIGNUM *n, *e, *d, *p, *q, *dmp1, *dmq1, *iqmp;
+  n = BN_new();
+  e = BN_new();
+  d = BN_new();
+  p = BN_new();
+  q = BN_new();
+  dmp1 = BN_new();
+  dmq1 = BN_new();
+  iqmp = BN_new();
+  places["Modulus"]=&n;
+  places["PublicExponent"]=&e;
+  places["PrivateExponent"]=&d;
+  places["Prime1"]=&p;
+  places["Prime2"]=&q;
+  places["Exponent1"]=&dmp1;
+  places["Exponent2"]=&dmq1;
+  places["Coefficient"]=&iqmp;
+#endif
 
   drc.d_algorithm = pdns_stou(stormap["algorithm"]);
 
@@ -353,16 +381,24 @@ void OpenSSLRSADNSCryptoKeyEngine::fromISCMap(DNSKEYRecordContent& drc, std::map
     if (!*val.second) {
       RSA_free(key);
       throw runtime_error(getName()+" error loading " + val.first);
+      // XXX leak
     }
   }
 
   if (drc.d_algorithm != d_algorithm) {
     RSA_free(key);
     throw runtime_error(getName()+" tried to feed an algorithm "+std::to_string(drc.d_algorithm)+" to a "+std::to_string(d_algorithm)+" key");
+    // XXX leak
   }
 
   if (d_key)
     RSA_free(d_key);
+
+#if OPENSSL_VERSION_NUMBER >= 0x01010000
+  RSA_set0_key(key, *places["Modulus"], *places["PublicExponent"], *places["PrivateExponent"]);
+  RSA_set0_factors(key, *places["Prime1"], *places["Prime2"]);
+  RSA_set0_crt_params(key, *places["Exponent1"], *places["Exponent2"], *places["Coefficient"]);
+#endif
 
   d_key = key;
 }
@@ -406,13 +442,13 @@ void OpenSSLRSADNSCryptoKeyEngine::fromPublicKeyString(const std::string& input)
     throw runtime_error(getName()+" allocation of key structure failed");
   }
 
-  key->e = BN_bin2bn((unsigned char*)exponent.c_str(), exponent.length(), NULL);
-  if (!key->e) {
+  BIGNUM *e = BN_bin2bn((unsigned char*)exponent.c_str(), exponent.length(), NULL);
+  if (!e) {
     RSA_free(key);
     throw runtime_error(getName()+" error loading e value of public key");
   }
-  key->n = BN_bin2bn((unsigned char*)modulus.c_str(), modulus.length(), NULL);
-  if (!key->n) {
+  BIGNUM *n = BN_bin2bn((unsigned char*)modulus.c_str(), modulus.length(), NULL);
+  if (!n) {
     RSA_free(key);
     throw runtime_error(getName()+" error loading n value of public key");
   }
@@ -420,6 +456,7 @@ void OpenSSLRSADNSCryptoKeyEngine::fromPublicKeyString(const std::string& input)
   if (d_key)
     RSA_free(d_key);
 
+  RSA_set0_key(key, n, e, NULL);
   d_key = key;
 }
 
@@ -569,12 +606,14 @@ std::string OpenSSLECDSADNSCryptoKeyEngine::sign(const std::string& msg) const
   string ret;
   unsigned char tmp[d_len];
 
-  int len = BN_bn2bin(signature->r, tmp);
+  const BIGNUM *pr, *ps;
+  ECDSA_SIG_get0(signature, &pr, &ps);
+  int len = BN_bn2bin(pr, tmp);
   if (d_len - len)
     ret.append(d_len - len, 0x00);
   ret.append(string((char*) tmp, len));
 
-  len = BN_bn2bin(signature->s, tmp);
+  len = BN_bn2bin(ps, tmp);
   if (d_len - len)
     ret.append(d_len - len, 0x00);
   ret.append(string((char*) tmp, len));
@@ -599,13 +638,21 @@ bool OpenSSLECDSADNSCryptoKeyEngine::verify(const std::string& msg, const std::s
     throw runtime_error(getName()+" allocation of signature structure failed");
   }
 
-  sig->r = BN_bin2bn((unsigned char*) signature.c_str(), d_len, sig->r);
-  sig->s = BN_bin2bn((unsigned char*) signature.c_str() + d_len, d_len, sig->s);
-  if (!sig->r || !sig->s) {
+  BIGNUM *r, *s;
+  r = BN_bin2bn((unsigned char*) signature.c_str(), d_len, NULL);
+  s = BN_bin2bn((unsigned char*) signature.c_str() + d_len, d_len, NULL);
+  if (!r || !s) {
+    if (r) {
+      BN_free(r);
+    }
+    if (s) {
+      BN_free(s);
+    }
     ECDSA_SIG_free(sig);
     throw runtime_error(getName()+" invalid signature");
   }
 
+  ECDSA_SIG_set0(sig, r, s);
   int ret = ECDSA_do_verify((unsigned char*) hash.c_str(), hash.length(), sig, d_eckey);
 
   ECDSA_SIG_free(sig);
