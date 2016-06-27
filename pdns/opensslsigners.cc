@@ -8,10 +8,11 @@
 #include <openssl/sha.h>
 #include <openssl/rand.h>
 #include <openssl/rsa.h>
+#include <openssl/opensslv.h>
 #include "opensslsigners.hh"
 #include "dnssecinfra.hh"
 
-
+#if OPENSSL_VERSION_NUMBER < 0x01010000
 static pthread_mutex_t *openssllocks;
 
 extern "C" {
@@ -53,7 +54,10 @@ void openssl_thread_cleanup()
 
   OPENSSL_free(openssllocks);
 }
-
+#else
+void openssl_thread_setup() {}
+void openssl_thread_cleanup() {}
+#endif
 
 /* seeding PRNG */
 
