@@ -2,6 +2,7 @@
 #include "config.h"
 #endif
 #include <openssl/aes.h>
+#include <openssl/modes.h>
 #include <iostream>
 #include <cstdlib>
 #include <cstring>
@@ -47,7 +48,7 @@ unsigned int dns_random(unsigned int n)
   if(!g_initialized)
     abort();
   uint32_t out;
-  AES_ctr128_encrypt((const unsigned char*)&g_in, (unsigned char*) &out, sizeof(g_in), &aes_key, g_counter, g_stream, &g_offset);
+  CRYPTO_ctr128_encrypt((const unsigned char*)&g_in, (unsigned char*) &out, sizeof(g_in), &aes_key, g_counter, g_stream, &g_offset, (block128_f) AES_encrypt);
   return out % n;
 }
 
