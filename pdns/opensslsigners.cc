@@ -8,10 +8,11 @@
 #include <openssl/sha.h>
 #include <openssl/rand.h>
 #include <openssl/rsa.h>
+#include <openssl/opensslv.h>
 #include "opensslsigners.hh"
 #include "dnssecinfra.hh"
 
-
+#if OPENSSL_VERSION_NUMBER < 0x01010000
 static pthread_mutex_t *openssllocks;
 
 extern "C" {
@@ -30,9 +31,11 @@ unsigned long openssl_pthreads_id_callback()
   return (unsigned long)pthread_self();
 }
 }
+#endif
 
 void openssl_thread_setup()
 {
+#if OPENSSL_VERSION_NUMBER < 0x01010000
   openssllocks = (pthread_mutex_t*)OPENSSL_malloc(CRYPTO_num_locks() * sizeof(pthread_mutex_t));
 
   for (int i = 0; i < CRYPTO_num_locks(); i++)
@@ -40,10 +43,12 @@ void openssl_thread_setup()
 
   CRYPTO_set_id_callback(openssl_pthreads_id_callback);
   CRYPTO_set_locking_callback(openssl_pthreads_locking_callback);
+#endif
 }
 
 void openssl_thread_cleanup()
 {
+#if OPENSSL_VERSION_NUMBER < 0x01010000
   cout<<"Thread cleanup!"<<endl;
   CRYPTO_set_locking_callback(NULL);
 
@@ -52,8 +57,8 @@ void openssl_thread_cleanup()
   }
 
   OPENSSL_free(openssllocks);
+#endif
 }
-
 
 /* seeding PRNG */
 
