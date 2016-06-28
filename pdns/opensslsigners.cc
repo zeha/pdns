@@ -404,17 +404,57 @@ void OpenSSLRSADNSCryptoKeyEngine::fromISCMap(DNSKEYRecordContent& drc, std::map
 
   BIGNUM *n, *e, *d, *p, *q, *dmp1, *dmq1, *iqmp;
   n = BN_new();
+  if (n == NULL) {
+    RSA_free(key);
+    throw runtime_error(getName()+" allocation of BIGNUM n failed");
+  }
   e = BN_new();
+  if (e == NULL) {
+    RSA_free(key);
+    BN_clear_free(n);
+    throw runtime_error(getName()+" allocation of BIGNUM e failed");
+  }
   d = BN_new();
+  if (d == NULL) {
+    RSA_free(key);
+    BN_clear_free(n);
+    BN_clear_free(e);
+    throw runtime_error(getName()+" allocation of BIGNUM d failed");
+  }
+  RSA_set0_key(key, n, e, d);
+
   p = BN_new();
+  if (p == NULL) {
+    RSA_free(key);
+    throw runtime_error(getName()+" allocation of BIGNUM p failed");
+  }
   q = BN_new();
+  if (q == NULL) {
+    RSA_free(key);
+    BN_clear_free(p);
+    throw runtime_error(getName()+" allocation of BIGNUM q failed");
+  }
+  RSA_set0_factors(key, p, q);
+
   dmp1 = BN_new();
+  if (dmp1 == NULL) {
+    RSA_free(key);
+    throw runtime_error(getName()+" allocation of BIGNUM dmp1 failed");
+  }
   dmq1 = BN_new();
+  if (dmq1 == NULL) {
+    RSA_free(key);
+    BN_clear_free(dmp1);
+    throw runtime_error(getName()+" allocation of BIGNUM dmq1 failed");
+  }
   iqmp = BN_new();
-  // transfer memory ownership of allocated BNs to RSA structure.
-  RSA_set0_key(key, *places["Modulus"], *places["PublicExponent"], *places["PrivateExponent"]);
-  RSA_set0_factors(key, *places["Prime1"], *places["Prime2"]);
-  RSA_set0_crt_params(key, *places["Exponent1"], *places["Exponent2"], *places["Coefficient"]);
+  if (iqmp == NULL) {
+    RSA_free(key);
+    BN_clear_free(dmq1);
+    BN_clear_free(iqmp);
+    throw runtime_error(getName()+" allocation of BIGNUM iqmp failed");
+  }
+  RSA_set0_crt_params(key, dmp1, dmq1, iqmp);
 
   places["Modulus"]=&n;
   places["PublicExponent"]=&e;
