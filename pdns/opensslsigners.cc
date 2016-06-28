@@ -12,7 +12,8 @@
 #include "opensslsigners.hh"
 #include "dnssecinfra.hh"
 
-#if OPENSSL_VERSION_NUMBER < 0x01010000
+#if OPENSSL_VERSION_NUMBER < 0x1010000fL
+/* OpenSSL < 1.1.0 needs support for threading/locking in the calling application. */
 static pthread_mutex_t *openssllocks;
 
 extern "C" {
@@ -54,10 +55,76 @@ void openssl_thread_cleanup()
 
   OPENSSL_free(openssllocks);
 }
+
+/* compat helpers. These DO NOT do any of the checking that the libssl 1.1 functions do. */
+static inline void RSA_get0_key(const RSA* rsakey, const BIGNUM** n, const BIGNUM** e, const BIGNUM** d) {
+  *n = rsakey->n;
+  *e = rsakey->e;
+  *d = rsakey->d;
+}
+
+static inline int RSA_set0_key(RSA* rsakey, BIGNUM* n, BIGNUM* e, BIGNUM* d) {
+  if (n) {
+    BN_clear_free(rsakey->n);
+    rsakey->n = n;
+  }
+  if (e) {
+    BN_clear_free(rsakey->e);
+    rsakey->e = e;
+  }
+  if (d) {
+    BN_clear_free(rsakey->d);
+    rsakey->d = d;
+  }
+  return 1;
+}
+
+static inline void RSA_get0_factors(const RSA* rsakey, const BIGNUM** p, const BIGNUM** q) {
+  *p = rsakey->p;
+  *q = rsakey->q;
+}
+
+static inline int RSA_set0_factors(RSA* rsakey, BIGNUM* p, BIGNUM* q) {
+  BN_clear_free(rsakey->p);
+  rsakey->p = p;
+  BN_clear_free(rsakey->q);
+  rsakey->q = q;
+  return 1;
+}
+
+static inline void RSA_get0_crt_params(const RSA* rsakey, const BIGNUM** dmp1, const BIGNUM** dmq1, const BIGNUM** iqmp) {
+  *dmp1 = rsakey->dmp1;
+  *dmq1 = rsakey->dmq1;
+  *iqmp = rsakey->iqmp;
+}
+
+static inline int RSA_set0_crt_params(RSA* rsakey, BIGNUM* dmp1, BIGNUM* dmq1, BIGNUM* iqmp) {
+  BN_clear_free(rsakey->dmp1);
+  rsakey->dmp1 = dmp1;
+  BN_clear_free(rsakey->dmq1);
+  rsakey->dmq1 = dmq1;
+  BN_clear_free(rsakey->iqmp);
+  rsakey->iqmp = iqmp;
+  return 1;
+}
+
+static inline void ECDSA_SIG_get0(const ECDSA_SIG* signature, const BIGNUM** pr, const BIGNUM** ps) {
+  *pr = signature->r;
+  *ps = signature->s;
+}
+
+static inline int ECDSA_SIG_set0(ECDSA_SIG* signature, BIGNUM* pr, BIGNUM* ps) {
+  BN_clear_free(signature->r);
+  BN_clear_free(signature->s);
+  signature->r = pr;
+  signature->s = ps;
+  return 1;
+}
 #else
 void openssl_thread_setup() {}
 void openssl_thread_cleanup() {}
 #endif
+
 
 /* seeding PRNG */
 
@@ -335,16 +402,6 @@ void OpenSSLRSADNSCryptoKeyEngine::fromISCMap(DNSKEYRecordContent& drc, std::map
     throw runtime_error(getName()+" allocation of key structure failed");
   }
 
-#if OPENSSL_VERSION_NUMBER < 0x01010000
-  places["Modulus"]=&key->n;
-  places["PublicExponent"]=&key->e;
-  places["PrivateExponent"]=&key->d;
-  places["Prime1"]=&key->p;
-  places["Prime2"]=&key->q;
-  places["Exponent1"]=&key->dmp1;
-  places["Exponent2"]=&key->dmq1;
-  places["Coefficient"]=&key->iqmp;
-#else
   BIGNUM *n, *e, *d, *p, *q, *dmp1, *dmq1, *iqmp;
   n = BN_new();
   e = BN_new();
@@ -354,6 +411,11 @@ void OpenSSLRSADNSCryptoKeyEngine::fromISCMap(DNSKEYRecordContent& drc, std::map
   dmp1 = BN_new();
   dmq1 = BN_new();
   iqmp = BN_new();
+  // transfer memory ownership of allocated BNs to RSA structure.
+  RSA_set0_key(key, *places["Modulus"], *places["PublicExponent"], *places["PrivateExponent"]);
+  RSA_set0_factors(key, *places["Prime1"], *places["Prime2"]);
+  RSA_set0_crt_params(key, *places["Exponent1"], *places["Exponent2"], *places["Coefficient"]);
+
   places["Modulus"]=&n;
   places["PublicExponent"]=&e;
   places["PrivateExponent"]=&d;
@@ -362,7 +424,6 @@ void OpenSSLRSADNSCryptoKeyEngine::fromISCMap(DNSKEYRecordContent& drc, std::map
   places["Exponent1"]=&dmp1;
   places["Exponent2"]=&dmq1;
   places["Coefficient"]=&iqmp;
-#endif
 
   drc.d_algorithm = pdns_stou(stormap["algorithm"]);
 
@@ -373,31 +434,20 @@ void OpenSSLRSADNSCryptoKeyEngine::fromISCMap(DNSKEYRecordContent& drc, std::map
     if (!val.second)
       continue;
 
-    if (*val.second)
-      BN_clear_free(*val.second);
-
-    *val.second = BN_bin2bn((unsigned char*) raw.c_str(), raw.length(), NULL);
+    *val.second = BN_bin2bn((unsigned char*) raw.c_str(), raw.length(), *val.second);
     if (!*val.second) {
       RSA_free(key);
       throw runtime_error(getName()+" error loading " + val.first);
-      // XXX leak
     }
   }
 
   if (drc.d_algorithm != d_algorithm) {
     RSA_free(key);
     throw runtime_error(getName()+" tried to feed an algorithm "+std::to_string(drc.d_algorithm)+" to a "+std::to_string(d_algorithm)+" key");
-    // XXX leak
   }
 
   if (d_key)
     RSA_free(d_key);
-
-#if OPENSSL_VERSION_NUMBER >= 0x01010000
-  RSA_set0_key(key, *places["Modulus"], *places["PublicExponent"], *places["PrivateExponent"]);
-  RSA_set0_factors(key, *places["Prime1"], *places["Prime2"]);
-  RSA_set0_crt_params(key, *places["Exponent1"], *places["Exponent2"], *places["Coefficient"]);
-#endif
 
   d_key = key;
 }
@@ -642,10 +692,10 @@ bool OpenSSLECDSADNSCryptoKeyEngine::verify(const std::string& msg, const std::s
   s = BN_bin2bn((unsigned char*) signature.c_str() + d_len, d_len, NULL);
   if (!r || !s) {
     if (r) {
-      BN_free(r);
+      BN_clear_free(r);
     }
     if (s) {
-      BN_free(s);
+      BN_clear_free(s);
     }
     ECDSA_SIG_free(sig);
     throw runtime_error(getName()+" invalid signature");
