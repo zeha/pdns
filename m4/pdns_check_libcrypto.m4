@@ -24,9 +24,6 @@
 #   Copyright (c) 2009,2010 Zmanda Inc. <http://www.zmanda.com/>
 #   Copyright (c) 2009,2010 Dustin J. Mitchell <dustin@zmanda.com>
 #
-# Modifications:
-#   Copyright (c) 2016 Pieter Lexis <pieter.lexis@powerdns.com>
-#
 #   Copying and distribution of this file, with or without modification, are
 #   permitted in any medium without royalty provided the copyright notice
 #   and this notice are preserved. This file is offered as-is, without any
