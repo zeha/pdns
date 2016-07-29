@@ -89,9 +89,6 @@ AC_DEFUN([PDNS_CHECK_LIBCRYPTO], [
         # it will just work!
     fi
 
-    # Don't pull in -lssl
-    LIBCRYPTO_LIBS='-lcrypto'
-
     # try the preprocessor and linker with our new flags,
     # being careful not to pollute the global LIBS, LDFLAGS, and CPPFLAGS
 
