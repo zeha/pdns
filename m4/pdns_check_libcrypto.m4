@@ -50,10 +50,10 @@ AC_DEFUN([PDNS_CHECK_LIBCRYPTO], [
             # then use that information and don't search ssldirs
             AC_CHECK_TOOL([PKG_CONFIG], [pkg-config])
             if test x"$PKG_CONFIG" != x""; then
-                LIBCRYPTO_LDFLAGS=`$PKG_CONFIG openssl --libs-only-L 2>/dev/null`
+                LIBCRYPTO_LDFLAGS=`$PKG_CONFIG libcrypto --libs-only-L 2>/dev/null`
                 if test $? = 0; then
-                    LIBCRYPTO_LIBS='-lcrypto' # This *will* break if the linker name is not crypto
-                    LIBCRYPTO_INCLUDES=`$PKG_CONFIG openssl --cflags-only-I 2>/dev/null`
+                    LIBCRYPTO_LIBS=`$PKG_CONFIG libcrypto --libs-only-l 2>/dev/null`
+                    LIBCRYPTO_INCLUDES=`$PKG_CONFIG libcrypto --cflags-only-I 2>/dev/null`
                     found=true
                 fi
             fi
