@@ -108,3 +108,4 @@ void setupLuaBindingsDNSQuestion();
 void setupLuaRules();
 void setupLuaInspection();
 void setupLuaVars();
+void setupLuaNamedCache(bool client);
