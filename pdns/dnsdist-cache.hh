@@ -29,6 +29,9 @@
 
 struct DNSQuestion;
 
+// GCA - named cache
+#include "dnsdist-namedcache.hh"
+
 class DNSDistPacketCache : boost::noncopyable
 {
 public:
