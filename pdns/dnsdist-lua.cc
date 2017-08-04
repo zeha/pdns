@@ -1580,6 +1580,8 @@ vector<std::function<void(void)>> setupLua(bool client, const std::string& confi
   setupLuaRules();
   setupLuaVars();
 
+  setupLuaNamedCache(client);
+
   std::ifstream ifs(config);
   if(!ifs)
     warnlog("Unable to read configuration from '%s'", config);
