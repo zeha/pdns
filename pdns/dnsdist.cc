@@ -101,6 +101,19 @@ vector<ClientState *> g_frontends;
 GlobalStateHolder<pools_t> g_pools;
 size_t g_udpVectorSize{1};
 
+
+// GCA- NamedCache
+#ifdef HAVE_NAMEDCACHE
+
+namedCaches_t g_namedCacheTable;
+
+std::atomic<std::uint16_t> g_namedCacheTempFileCount;
+
+std::string g_namedCacheTempPrefix = "-4rld";
+
+#endif
+
+
 bool g_snmpEnabled{false};
 bool g_snmpTrapsEnabled{false};
 DNSDistSNMPAgent* g_snmpAgent{nullptr};
@@ -335,6 +348,28 @@ bool fixUpResponse(char** response, uint16_t* responseLen, size_t* responseSize,
 
   return true;
 }
+
+// GCA - copy qTag data into response object from question
+int copyQTag(DNSResponse &dr, const std::shared_ptr<QTag> qTagData)
+{
+  int iCount = 0;
+
+  if(qTagData != nullptr) {
+    if(dr.qTag == nullptr) {
+      dr.qTag = std::make_shared<QTag>();
+      }
+
+    if(dr.qTag != nullptr) {
+      for (const auto& itr : qTagData->tagData) {
+        dr.qTag->add(itr.first, itr.second);
+        iCount++;
+        }
+    }
+  }
+  return(iCount);
+}
+
+
 
 #ifdef HAVE_DNSCRYPT
 bool encryptResponse(char* response, uint16_t* responseLen, size_t responseSize, bool tcp, std::shared_ptr<DNSCryptQuery> dnsCryptQuery, dnsheader** dh, dnsheader* dhCopy)
@@ -1353,6 +1388,12 @@ static void processUDPQuery(ClientState& cs, LocalHolders& holders, const struct
       uint32_t allowExpired = ss ? 0 : g_staleCacheEntriesTTL;
       if (packetCache->get(dq, consumed, dh->id, query, &cachedResponseSize, &cacheKey, subnet, allowExpired)) {
         DNSResponse dr(dq.qname, dq.qtype, dq.qclass, dq.local, dq.remote, reinterpret_cast<dnsheader*>(query), dq.size, cachedResponseSize, false, &queryRealTime);
+
+// GCA - copy qTag data into response object from question
+//              allows normal cache hit to pass qTag data
+
+        copyQTag(dr, dq.qTag);
+
 #ifdef HAVE_PROTOBUF
         dr.uniqueId = dq.uniqueId;
 #endif
