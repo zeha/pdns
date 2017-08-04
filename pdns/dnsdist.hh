@@ -158,6 +158,10 @@ struct DNSResponse : DNSQuestion
   const struct timespec* queryTime;
 };
 
+// GCA - copy qTag data into response object from question
+extern int copyQTag(DNSResponse &dr, const std::shared_ptr<QTag> qTagData);
+
+
 /* so what could you do: 
    drop, 
    fake up nxdomain, 
@@ -716,6 +720,7 @@ void setPoolPolicy(pools_t& pools, const string& poolName, std::shared_ptr<Serve
 void addServerToPool(pools_t& pools, const string& poolName, std::shared_ptr<DownstreamState> server);
 void removeServerFromPool(pools_t& pools, const string& poolName, std::shared_ptr<DownstreamState> server);
 
+
 struct CarbonConfig
 {
   ComboAddress server;
@@ -739,6 +744,7 @@ extern GlobalStateHolder<vector<pair<std::shared_ptr<DNSRule>, std::shared_ptr<D
 extern GlobalStateHolder<vector<pair<std::shared_ptr<DNSRule>, std::shared_ptr<DNSResponseAction> > > > g_resprulactions;
 extern GlobalStateHolder<vector<pair<std::shared_ptr<DNSRule>, std::shared_ptr<DNSResponseAction> > > > g_cachehitresprulactions;
 extern GlobalStateHolder<NetmaskGroup> g_ACL;
+
 
 extern ComboAddress g_serverControl; // not changed during runtime
 
