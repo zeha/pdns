@@ -725,29 +725,7 @@ void moreLua(bool client)
     return std::make_shared<DNSDistNamedCache>(fileName, maxEntries);
     });
 
-    g_lua.registerFunction<std::unordered_map<string, string>(std::shared_ptr<DNSDistNamedCache>::*)(std::string)>("lookupTable", [](const std::shared_ptr<DNSDistNamedCache> nc, const std::string& strQuery) {
-
-    printf("DEBUG DEBUG DEBUG - DNSDistNamedCache::lookupTable() \n");
-    printf("DEBUG DEBUG DEBUG - DNSDistNamedCache::lookupTable() - query: %s \n", strQuery.c_str());
-
-        std::unordered_map<string, string> XX;
-//        XX.insert(std::make_pair<bool, std::string>(true, "this is a test"));
-
-
-        return XX;
-    });
-
-/*
-    g_lua.registerFunction<void(std::shared_ptr<DNSDistNamedCache>::*)()>("debug", [](const std::shared_ptr<DNSDistNamedCache> nc) {
-
-    if (nc) {
-      printf("DNSDistNamedCache::debug() - strFileName: %s   uMaxEntries: %lu \n", nc->getFileName().c_str(), nc->getMaxEntries());
-    } else {
-      printf("DNSDistNamedCache::debug() - null pointer! \n");
-    }
-
-    });
-*/
+// ----------------------------------------------------------------------------
     g_lua.registerFunction<uint64_t(std::shared_ptr<DNSDistNamedCache>::*)()>("getMaxEntries", [](const std::shared_ptr<DNSDistNamedCache> nc) {
         if (nc) {
           return(nc->getMaxEntries());
@@ -756,6 +734,7 @@ void moreLua(bool client)
         }
       });
 
+// ----------------------------------------------------------------------------
     g_lua.registerFunction<std::string(std::shared_ptr<DNSDistNamedCache>::*)()>("getFileName", [](const std::shared_ptr<DNSDistNamedCache> nc) {
         if (nc) {
           return(nc->getFileName());
@@ -765,6 +744,7 @@ void moreLua(bool client)
         }
       });
 
+// ----------------------------------------------------------------------------
 //    g_lua.registerFunction<std::string(std::shared_ptr<DNSDistNamedCache>::*)(std::string)>("lookup", [](const std::shared_ptr<DNSDistNamedCache> nc, const std::string& strQuery) {
     g_lua.registerFunction<std::string(DNSDistNamedCache::*)(std::string)>("lookup", [](DNSDistNamedCache& nc, const std::string& strQuery) {
 
@@ -787,26 +767,20 @@ void moreLua(bool client)
     return strRet;
     });
 
+// ----------------------------------------------------------------------------
 //   g_lua.registerMember<const DNSName (DNSQuestion::*)>("qname", [](const DNSQuestion& dq) -> const DNSName { return *dq.qname; }, [](DNSQuestion& dq, const DNSName newName) { (void) newName; });
 //    g_lua.registerFunction<std::string(DNSDistNamedCache::*)(const DNSQuestion& dq)>("lookupdq", [](DNSDistNamedCache& nc, const DNSQuestion& dq) {
     g_lua.registerFunction<std::string(DNSDistNamedCache::*)(const DNSName& qn)>("lookupdq", [](DNSDistNamedCache& nc, const DNSName& qn) {
 
-    printf("DEBUG DEBUG DEBUG - DNSDistNamedCache::lookupDQ() \n");
+//    printf("DEBUG DEBUG DEBUG - DNSDistNamedCache::lookupDQ() \n");
 
-    std::string strQuery = "";
-
-//    strQuery = qn.toDNSStringLC();
-    strQuery = qn.toString();
-    strQuery = toLower(strQuery);
-
-
-//    std::string strQuery = dq.qname->toDNSStringLC();
+    std::string strQuery = toLower(qn.toString());
 
     if(strQuery.back() == '.') {
-      printf("DEBUG DEBUG DEBUG - DNSDistNamedCache::lookupDQ() - query: %s    REMOVING LAST PERIOD\n", strQuery.c_str());
+//      printf("DEBUG DEBUG DEBUG - DNSDistNamedCache::lookupDQ() - query: %s    REMOVING LAST PERIOD\n", strQuery.c_str());
       strQuery.pop_back();
       }
-    printf("DEBUG DEBUG DEBUG - DNSDistNamedCache::lookupDQ() - query: %s \n", strQuery.c_str());
+//    printf("DEBUG DEBUG DEBUG - DNSDistNamedCache::lookupDQ() - query: %s \n", strQuery.c_str());
 
     std::string strRet;
     int iLoc = nc.lookup(strQuery, strRet);
@@ -825,6 +799,36 @@ void moreLua(bool client)
     });
 
 
+// ----------------------------------------------------------------------------
+    g_lua.registerFunction<std::unordered_map<string, string>(DNSDistNamedCache::*)(const DNSName& qn)>("lookupTableDQ", [](DNSDistNamedCache& nc, const DNSName& qn) {
+
+    printf("DEBUG DEBUG DEBUG - DNSDistNamedCache::lookupTableDQ() \n");
+
+    std::unordered_map<string, string> tableResult;
+
+    std::string strQuery = toLower(qn.toString());
+
+    if(strQuery.back() == '.') {
+      strQuery.pop_back();
+      }
+
+    printf("DEBUG DEBUG DEBUG - DNSDistNamedCache::lookupTableDQ() - query: %s \n", strQuery.c_str());
+
+    std::string strRet;
+    int iLoc = nc.lookup(strQuery, strRet);
+    switch(iLoc) {
+        case LOC::CDB:
+                break;
+        case LOC::CACHE:
+                break;
+        default:
+                break;
+        }
+
+        return tableResult;
+    });
+
+// ----------------------------------------------------------------------------
     g_lua.registerFunction<void(std::shared_ptr<DNSDistNamedCache>::*)()>("debug", [](const std::shared_ptr<DNSDistNamedCache> nc) {
         if (nc) {
           printf("DNSDistNamedCache::debug() \n");
@@ -836,19 +840,13 @@ void moreLua(bool client)
           printf("\tCache Hits....: %lu \n", nc->getCacheHits());
           printf("\tCDB Hits......: %lu \n", nc->getCdbHits());
           printf("\tCache Miss....: %lu \n", nc->getCacheMiss());
-/*
-          g_outputBuffer  = "CDB File......: " + nc->getFileName() + "\n";
-          g_outputBuffer += "File Opened...: " + strTemp + "\n";
-          g_outputBuffer += "Max entries...: " + std::to_string(nc->getMaxEntries()) + "\n";
-          g_outputBuffer += "In use entries: " + std::to_string(nc->getCacheEntries()) + "\n";
-*/
         } else {
           printf("DNSDistNamedCache::debug() - pointer is null! \n");
         }
       });
 
 
-
+#ifdef TRASH
 
     g_lua.registerFunction<std::shared_ptr <DNSDistNamedCacheResult>(DNSDistNamedCache::*)(std::string)>("lookupx", [](const DNSDistNamedCache& nc, const std::string& strQuery) {
     bool bFound = false;
@@ -882,6 +880,8 @@ void moreLua(bool client)
     return ncr.data();
     });
 
+
+#endif
 
 
 // ----------------------------------------------------------------------------
