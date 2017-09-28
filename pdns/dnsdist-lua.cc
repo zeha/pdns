@@ -1693,7 +1693,7 @@ vector<std::function<void(void)>> setupLua(bool client, const std::string& confi
     });
 
 // ----------------------------------------------------------------------------------------------------------
-// GCA - Seth
+// GCA - Seth - 9/1/2017
 // ----------------------------------------------------------------------------------------------------------
   g_lua.registerFunction<std::unordered_map<string, string>(DNSResponse::*)(void)>("getTagArrayResp", [](const DNSQuestion& dq) {
 
