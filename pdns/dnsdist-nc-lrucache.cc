@@ -1,5 +1,9 @@
+// malloc is for malloc_trim() test
+
+#include <malloc.h>
 
 #include "config.h"
+
 
 #include "dnsdist-nc-lrucache.hh"
 
@@ -20,8 +24,17 @@ lruCache::lruCache(size_t maxEntries)
 
 lruCache::~lruCache()
 {
+  clearLRU();
+}
+
+void lruCache::clearLRU()
+{
   cacheMap.clear();
   cacheList.clear();
+  printf("lruCache::clearLRU() - DEBUG - DEBUG - cleared map & list ......................... \n");
+  int iStat = malloc_trim(0);
+  printf("lruCache::clearLRU() - DEBUG - DEBUG - malloc_trim() - %s ......................... \n", iStat?"Memory Released":"NOT POSSIBLE TO RELEASE MEMORY");
+
 }
 
 void lruCache::put(const std::string& key, const std::string& value)
@@ -63,6 +76,7 @@ size_t lruCache::size()
 // ----------------------------------------------------------------------------
 LRUCache::LRUCache()
 {
+  ptrCache = new lruCache(0);
 }
 
 bool LRUCache::setCacheMode(int iMode)
@@ -75,6 +89,9 @@ bool LRUCache::init(int capacity, int iCacheMode)
 {
   setCacheMode(iCacheMode);
   this->iMaxEntries = capacity;
+  if(ptrCache != nullptr) {
+    delete ptrCache;
+  }
   ptrCache = new lruCache(capacity);
   return(true);
 }
@@ -111,9 +128,10 @@ std::string LRUCache::getErrMsg()
 
 LRUCache::~LRUCache()
 {
-  delete ptrCache;
-  iMaxEntries = 0;
   close();
+  if(ptrCache != nullptr) {
+    delete ptrCache;
+  }
 }
 
 // ----------------------------------------------------------------------------
@@ -128,11 +146,20 @@ bool bStatus = false;
   return(bStatus);
 }
 
+// ----------------------------------------------------------------------------
+// close() - close down lru cache & free up resources
+// ----------------------------------------------------------------------------
 bool LRUCache::close()
 {
 bool bStatus = false;
 
   bStatus = cdbFH.close();
+  if(ptrCache != nullptr) {
+    delete ptrCache;
+  }
+  ptrCache = new lruCache(0);
+  iMaxEntries = 0;
+  iMaxEntries = 0;
   return(bStatus);
 }
 

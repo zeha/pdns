@@ -69,75 +69,10 @@ void resetLuaSideEffect()
   g_noLuaSideEffect = boost::logic::indeterminate;
 }
 
-// ----------------------------------------------------------------------------
-// GCA - Seth - 10/20/2017 Experimental.......
-// ----------------------------------------------------------------------------
-
-void namedCacheReloadThread(std::shared_ptr<NamedCacheX> entryCacheA, const std::string& strCacheNameA,  boost::optional<int> maxEntries)
-{
-
-//  warnlog("namedCacheReload start - Cache Name: %s   Max Entries: %s", strCacheNameA.c_str(), maxEntries?std::to_string((int) *maxEntries):"all");
-
-  auto start = std::chrono::system_clock::now();
-  std::time_t startTime = std::chrono::system_clock::to_time_t(start);
-  std::string strStartTime;
-  strStartTime.append(std::ctime(&startTime), 19);
-//  warnlog("namedCacheReloadThread start - %s", strStartTime.c_str());
 
 
 
-  std::string strFileNameA = entryCacheA->namedCache->getFileName();
-  std::string strCacheTypeA = entryCacheA->namedCache->getCacheTypeText();
-  std::string strCacheModeA = entryCacheA->namedCache->getCacheModeText();
-  int iMaxEntriesA = entryCacheA->namedCache->getMaxEntries();
-  if(maxEntries) {
-    iMaxEntriesA = *maxEntries;
-  }
 
-
-  auto namedCacheList = g_namedCaches.getCopy();
-  std::string strCacheNameB = g_namedCacheTempPrefix;
-  std::stringstream stream;
-  stream << std::hex << g_namedCacheTempFileCount++;
-  strCacheNameB += stream.str();                // unique temporary named cache name for loading in bkg
-  std::shared_ptr<NamedCacheX> entryCacheB = createNamedCacheIfNotExists(namedCacheList, strCacheNameB);
-  g_namedCaches.setState(namedCacheList);
-
-
-
-  bool bStat = entryCacheB->namedCache->init(strFileNameA, strCacheTypeA, strCacheModeA , iMaxEntriesA, false);
-  if(bStat == true) {
-    warnlog("namedCacheReload - loading - Cache Name: %s   Max Entries: %s   Time: %s ", strCacheNameA.c_str(), maxEntries?std::to_string((int) *maxEntries):"all", strStartTime.c_str());
-    std::lock_guard<std::mutex> lock(g_luamutex);                                       // lua lock till end of 'if'
-    std::shared_ptr<DNSDistNamedCache> namedCacheTemp = entryCacheA->namedCache;        // get ptr to 'A'
-    entryCacheA->namedCache = entryCacheB->namedCache;                                  // have 'A' pt to new 'B'
-    entryCacheB->namedCache = namedCacheTemp;                                           // have 'B' pt to old 'A'
-    entryCacheB->namedCache->close();                                                   // remove resources from the 'temp' named cache
-    auto namedCacheList2 = g_namedCaches.getCopy();
-    deleteNamedCacheEntry(namedCacheList2,strCacheNameB);
-    g_namedCaches.setState(namedCacheList2);
-  } else {
-      std::stringstream err;
-      err << "Failed to reload named cache " << strFileNameA << "  -> " << entryCacheB->namedCache->getErrMsg() << "(" << entryCacheB->namedCache->getErrNum() << ")" << endl;
-      string outstr = err.str();
-	  errlog(outstr.c_str());
-    }
-
-
-
-  auto end = std::chrono::system_clock::now();
-  std::time_t endTime = std::chrono::system_clock::to_time_t(end);
-  std::string strEndTime;
-  strEndTime.append(std::ctime(&endTime), 19);
-
-//  warnlog("namedCacheReloadThread iMaxEntriesA: %d ", iMaxEntriesA);
-  auto millSec = std::chrono::duration_cast<std::chrono::milliseconds> (end-start);
-  warnlog("namedCacheReload - finished - Cache Name: %s   Max Entries: %d   Elapsed ms: %d ", strCacheNameA.c_str(), iMaxEntriesA, millSec.count());
-
-
-}
-
-// ----------------------------------------------------------------------------
 
 map<ComboAddress,int> filterScore(const map<ComboAddress, unsigned int,ComboAddress::addressOnlyLessThan >& counts, 
 				  double delta, int rate)
@@ -905,30 +840,7 @@ void moreLua(bool client)
     g_lua.writeFunction("showNamedCaches", []() {
       setLuaNoSideEffect();
       try {
-        ostringstream ret;
-        boost::format fmt("%1$8.8s %|5t|%2$4s %|5t|%3$4s %|5t|%4$4s %|5t|%5$8s %|5t|%6$8s %|5t|%7$12s %|5t|%8$12s %|5t|%9$12s %|5t|%10$12s %|5t|%11$12s %|5t|%12%");
-        ret << (fmt % "Name" % "Type" % "Mode" % "Open" % "MaxCache" % "InCache" % "HitsCache" % "NoDataCache" % "CdbHits" % "CdbNoData"% " MissCache" % "FileName" ) << endl;
-        ret << (fmt % "--------" % "----" % "----" % "----" % "--------" % "--------" % "------------" % "------------" % "------------" % "------------" % "------------" % "--------" ) << endl;
-
-        const auto localNamedCaches = g_namedCaches.getCopy();
-        for (const auto& entry : localNamedCaches) {
-          const string& strCacheName = entry.first;                           // get name
-          const std::shared_ptr<NamedCacheX> cacheEntry = entry.second;       // get object - was NamedCacheX
-          string strFileName = cacheEntry->namedCache->getFileName();
-          string strType = cacheEntry->namedCache->getCacheTypeText(true);    // load / bind name
-          string strMode = cacheEntry->namedCache->getCacheModeText();
-          string strFileOpen = cacheEntry->namedCache->isFileOpen()?"Yes":"No";
-          string strMaxEntries = std::to_string(cacheEntry->namedCache->getMaxEntries());
-          string strInCache = std::to_string(cacheEntry->namedCache->getCacheEntries());
-          string strHitsCache = std::to_string(cacheEntry->namedCache->getCacheHits());
-          string strNoDataCache = std::to_string(cacheEntry->namedCache->getCacheHitsNoData());
-          string strCdbHits = std::to_string(cacheEntry->namedCache->getCdbHits());
-          string strCdbHitsNoData = std::to_string(cacheEntry->namedCache->getCdbHitsNoData());
-          string strMissCache = std::to_string(cacheEntry->namedCache->getCacheMiss());
-          ret << (fmt % strCacheName % strType % strMode % strFileOpen % strMaxEntries % strInCache % strHitsCache % strNoDataCache % strCdbHits % strCdbHitsNoData % strMissCache % strFileName) << endl;
-
-        }
-        g_outputBuffer=ret.str();
+        g_outputBuffer = getAllNamedCacheStatus(g_namedCacheTable);
       }catch(std::exception& e) { g_outputBuffer=e.what(); throw; }
     });
 
@@ -954,9 +866,10 @@ void moreLua(bool client)
 	      return;
         }
 
-      auto localPools = g_namedCaches.getCopy();
-      std::shared_ptr<NamedCacheX> pool = createNamedCacheIfNotExists(localPools, strCacheName);
-      g_namedCaches.setState(localPools);
+//      auto localPools = g_namedCaches.getCopy();
+//      auto namedCacheList = g_namedCacheTable;
+      createNamedCacheIfNotExists(g_namedCacheTable, strCacheName);
+//      g_namedCaches.setState(localPools);
     });
 
 // ----------------------------------------------------------------------------
@@ -983,10 +896,12 @@ void moreLua(bool client)
 	      return;
         }
 
-      auto namedCacheList = g_namedCaches.getCopy();
-      std::shared_ptr<NamedCacheX> pool = createNamedCacheIfNotExists(namedCacheList, strCacheName);
-      pool->namedCache->close();       // remove resources from the 'temp' named cache
-      g_namedCaches.setState(namedCacheList);
+//      auto namedCacheList = g_namedCaches.getCopy();
+
+//      auto namedCacheList = g_namedCacheTable;
+      std::shared_ptr<NamedCacheX> selectedEntry = createNamedCacheIfNotExists(g_namedCacheTable, strCacheName);
+      selectedEntry->namedCache->close();       // remove resources from the 'temp' named cache
+//      g_namedCaches.setState(namedCacheList);
     });
 
 
@@ -1002,7 +917,6 @@ void moreLua(bool client)
 // ----------------------------------------------------------------------------
   g_lua.writeFunction("reloadNamedCache", [](const boost::optional<std::string> cacheName, boost::optional<int> maxEntries) {
       setLuaSideEffect();
-      auto localPools = g_namedCaches.getCopy();
       std::string strCacheNameA = "";
       if(cacheName) {
         strCacheNameA = *cacheName;
@@ -1018,11 +932,7 @@ void moreLua(bool client)
 	      return;
         }
 
-      std::shared_ptr<NamedCacheX> entryCacheA = createNamedCacheIfNotExists(localPools, strCacheNameA);
-
-
-
-      std::thread t(namedCacheReloadThread, entryCacheA, strCacheNameA, maxEntries);
+      std::thread t(namedCacheReloadThread, strCacheNameA, maxEntries);
 	  t.detach();
 
     });
@@ -1049,9 +959,10 @@ void moreLua(bool client)
 	      errlog("Error deleting new named cache, don't use named cache temp prefix.");
 	      return;
         }
-      auto namedCacheList = g_namedCaches.getCopy();
-      deleteNamedCacheEntry(namedCacheList, strCacheName);
-      g_namedCaches.setState(namedCacheList);
+//      auto namedCacheList = g_namedCaches.getCopy();
+//      auto namedCacheList = g_namedCacheTable;
+      deleteNamedCacheEntry(g_namedCacheTable, strCacheName, 0);
+//      g_namedCaches.setState(namedCacheList);
     });
 
 
@@ -1087,9 +998,10 @@ void moreLua(bool client)
         return std::make_shared<NamedCacheX>();
       }
 
-      auto namedCacheList = g_namedCaches.getCopy();
-      std::shared_ptr<NamedCacheX> nc = createNamedCacheIfNotExists(namedCacheList, name);
-      g_namedCaches.setState(namedCacheList);
+//      auto namedCacheList = g_namedCaches.getCopy();
+//      auto namedCacheList = g_namedCacheTable;
+      std::shared_ptr<NamedCacheX> nc = createNamedCacheIfNotExists(g_namedCacheTable, name);
+//      g_namedCaches.setState(namedCacheList);
       return nc;
     });
 
@@ -1266,8 +1178,10 @@ void moreLua(bool client)
     g_lua.registerFunction<bool(std::shared_ptr<NamedCacheX>::*)(const string&)>("loadFromCDB", [](const std::shared_ptr<NamedCacheX>pool, const string& fileName) {
         if (pool->namedCache) {
           std::shared_ptr<DNSDistNamedCache> nc = pool->namedCache;
-          if (nc) {
-	    return nc->init(fileName, "MAP", "CDB", 1, false);
+          if (nc) {         
+            std::thread t(namedCacheLoadThread, pool, fileName, "MAP", "CDB", 1);
+	        t.detach();
+            return true;
 	  }
 	}
 	return false;
@@ -1318,7 +1232,9 @@ void moreLua(bool client)
 	      csize = *maxEntries;
 	    }
 
-	    return nc->init(fileName, "LRU", cmode, csize, false);
+        std::thread t(namedCacheLoadThread, pool, fileName, "LRU", cmode, csize);
+	    t.detach();
+	    return true;
 	  }
         }
 	return false;

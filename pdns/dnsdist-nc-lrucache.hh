@@ -22,13 +22,14 @@ public:
   typedef typename std::list<key_value_pair_t>::iterator list_iterator_t;
   lruCache(size_t=0);
   ~lruCache();
+  void clearLRU();
   void put(const std::string& key, const std::string& value);
   bool get(const std::string& key, std::string &val);
   size_t size();
 private:
-  std::list<key_value_pair_t> cacheList;                // front is most recent use
+  std::list<key_value_pair_t> cacheList;                  // front is most recent use
   std::unordered_map<keyType, list_iterator_t> cacheMap;  // key with ptr to list entry
-  size_t iMaxEntries;                                   // max entries to allow
+  size_t iMaxEntries;                                     // max entries to allow
 };
 
 class LRUCache : public NamedCache  {

@@ -24,7 +24,7 @@ public:
    int   getCache(const std::string strKey, std::string &strValue);
    bool  setSize(int iEntries);
 private:
-   int  iEntriesRead;
+   int iEntriesRead;
    int iCacheMode;                       // not used at present
    int iErrNum;                          // errno
    std::string strErrMsg;
