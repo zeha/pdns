@@ -91,9 +91,6 @@ std::string strFound;
         strFound = "BIND";
         }
       break;
-    case CACHE_TYPE::TYPE_LRU2:
-      strFound = "LRU2";
-      break;
     case CACHE_TYPE::TYPE_MAP:
       strFound = "MAP";
       if(bLoadBindMode == true) {           // for user display with loadFromCDB()
@@ -120,9 +117,6 @@ std::string strTemp;
   }
   if(strTemp == "lru") {
     return(CACHE_TYPE::TYPE_LRU);
-  }
-  if(strTemp == "lru2") {
-    return(CACHE_TYPE::TYPE_LRU2);
   }
   if(strTemp == "map") {
     return(CACHE_TYPE::TYPE_MAP);

@@ -100,7 +100,9 @@ size_t g_udpVectorSize{1};
 
 #ifdef HAVE_NAMEDCACHE
 
-GlobalStateHolder<namedCaches_t> g_namedCaches;
+//GlobalStateHolder<namedCaches_t> g_namedCaches;
+
+namedCaches_t g_namedCacheTable;
 
 std::atomic<std::uint16_t> g_namedCacheTempFileCount;
 
@@ -375,46 +377,6 @@ int copyQTag(DNSResponse &dr, const std::shared_ptr<QTag> qTagData)
   }
   return(iCount);
 }
-
-// ----------------------------------------------------------------------------
-// createNamedCacheIfNotExists() - does what is says - 9/1/2017
-// ----------------------------------------------------------------------------
-
-#ifdef HAVE_NAMEDCACHE
-
-
-std::shared_ptr<NamedCacheX> createNamedCacheIfNotExists(namedCaches_t& namedCachesTable, const string& findCacheName)
-{
-  std::shared_ptr<NamedCacheX> selectedCache;
-  namedCaches_t::iterator it = namedCachesTable.find(findCacheName);
-  if (it != namedCachesTable.end()) {
-    selectedCache = it->second;
-  } else {
-      if(!findCacheName.empty()) {
-        vinfolog("Creating named cache %s", findCacheName);
-      }
-      selectedCache = std::make_shared<NamedCacheX>();
-      selectedCache->namedCache = std::make_shared<DNSDistNamedCache>("", "NONE", "NONE", 0, false);       // last var is debug switch
-      namedCachesTable.insert(std::pair<std::string,std::shared_ptr<NamedCacheX> >(findCacheName, selectedCache));
-    }
-  return selectedCache;
-}
-
-bool deleteNamedCacheEntry(namedCaches_t& namedCachesTable, const string& findCacheName)
-{
-  std::shared_ptr<NamedCacheX> selectedCache;
-  namedCaches_t::iterator it = namedCachesTable.find(findCacheName);
-  if (it != namedCachesTable.end()) {
-
-    selectedCache = it->second;
-    selectedCache->namedCache->init("", "", "", 0);     // minimize resources
-    namedCachesTable.erase(it);
-    return true;
-  }
-  return false;
-}
-
-#endif
 
 // ----------------------------------------------------------------------------
 
