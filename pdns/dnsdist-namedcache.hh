@@ -3,13 +3,27 @@
 
 #include <atomic>
 
+// ----------------------------------------------------------------------------
+// for createNamedCacheIfNotExists(), etc.
+
+#include <chrono>
+#include <ctime>
+
+// ----------------------------------------------------------------------------
+
+
+#include "dnsdist.hh"
+#include "dolog.hh"
+// ----------------------------------------------------------------------------
+
+
 #include "config.h"
 
 #include "dnsdist-nc-namedcache.hh"
 #include "dnsdist-nc-lrucache.hh"
-#include "dnsdist-nc-lrucache2.hh"
 #include "dnsdist-nc-mapcache.hh"
 #include "dnsdist-nc-nocache.hh"
+
 
 // ----------------------------------------------------------------------------
 // Seth - GCA - named cache - 8/28/2017
@@ -52,11 +66,13 @@
 class DNSDistNamedCache
 {
 public:
-  DNSDistNamedCache(const std::string& fileName, const std::string& strReqType, const std::string& strReqMode, size_t maxEntries, int iDebug=0);
+  DNSDistNamedCache(const std::string& cacheName, const std::string& fileName, const std::string& reqType, const std::string& reqMode, size_t maxEntries, int iDebug=0);
   ~DNSDistNamedCache();
-  bool init(const std::string& fileName, const std::string& strReqType, const std::string& strReqMode, size_t maxEntries, int iDebug=0);
+  bool init(const std::string& cacheName, const std::string& fileName, const std::string& reqType, const std::string& reqMode, size_t maxEntries, int iDebug=0);
   bool close(void);
   uint64_t getMaxEntries();
+  std::string   getCacheName();
+  void setCacheName(const std::string cacheName);
   std::string   getFileName();
   int getErrNum();
   std::string   getErrMsg();
@@ -82,6 +98,7 @@ private:
   int iDebug;
   int iCacheType;
   int iCacheMode;
+  std::string strCacheName;
   std::string strFileName;
   size_t uMaxEntries;
   NamedCache *nc;
@@ -94,6 +111,33 @@ private:
   time_t tCreation;
   time_t tCounterReset;
 };
+
+// ----------------------------------------------------------------------------
+// GCA - Seth - NamedCache Table 8/31/2017
+// ----------------------------------------------------------------------------
+
+struct NamedCacheX
+{
+  std::shared_ptr<DNSDistNamedCache> namedCache{nullptr};
+};
+
+using namedCaches_t=map<std::string, std::shared_ptr<NamedCacheX>>;
+
+//extern GlobalStateHolder<namedCaches_t> g_namedCaches;
+
+extern namedCaches_t g_namedCacheTable;
+
+extern std::atomic<std::uint16_t> g_namedCacheTempFileCount;
+
+extern std::string g_namedCacheTempPrefix;
+
+
+extern std::shared_ptr<NamedCacheX> createNamedCacheIfNotExists(namedCaches_t& namedCaches, const string& cacheName, const int iDebug=0);
+extern bool deleteNamedCacheEntry(namedCaches_t& namedCachesTable, const string& findCacheName, const int iDebug=false);
+extern int  swapNamedCacheEntries(namedCaches_t& namedCachesTable, const string& findCacheNameA, const string& findCacheNameB, const int iDebug=0);
+extern void namedCacheLoadThread(std::shared_ptr<NamedCacheX> entryCacheA, const std::string strFileName, const std::string strCacheType, const std::string strCacheMode, int iMaxEntries);
+extern void namedCacheReloadThread(const std::string& strCacheNameA,  boost::optional<int> maxEntries);
+extern std::string getAllNamedCacheStatus(namedCaches_t& namedCachesTable);
 
 #endif
 

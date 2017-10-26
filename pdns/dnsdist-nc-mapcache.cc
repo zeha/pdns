@@ -1,3 +1,7 @@
+// malloc is for malloc_trim() test
+
+#include <malloc.h>
+
 
 #include "config.h"
 
@@ -14,12 +18,16 @@ CdbMapCache::CdbMapCache()
 
 CdbMapCache::~CdbMapCache()
 {
-  iEntriesRead = 0;
-  mapKeyData.clear();
+  close();
 }
 
 bool CdbMapCache::close()
 {
+  iEntriesRead = 0;
+  mapKeyData.clear();                   // 10/25/2017 - clear map
+  printf("lruCache::close() - DEBUG - DEBUG - cleared mapKeyData ......................... \n");
+  int iStat = malloc_trim(0);
+  printf("lruCache::close() - DEBUG - DEBUG - malloc_trim() - %s ......................... \n", iStat?"Memory Released":"NOT POSSIBLE TO RELEASE MEMORY");
   return(true);
 }
 
@@ -27,7 +35,7 @@ bool CdbMapCache::open(std::string strFileName)
 {
 std::string strErrNo;
 
-  int iStatus = loadCdbMap(strFileName);
+  int iStatus = loadCdbMap(strFileName, false);          // true for debugging
   if(iStatus >= 0) {
     strErrMsg = "";
     return(true);
@@ -150,7 +158,7 @@ std::string strData;
         break;
       }
       if(iStatus == 0) {
-        if(iDebug > 0) {
+        if(iDebug > 1) {
           printf("\t%3.3d   HashOff: %u   HashEntires: %u \n", ii, u32HashOffset, u32HashEntries);
         }
       }
@@ -181,7 +189,7 @@ std::string strData;
          }
      }
 
-     if(iDebug > 0) {
+     if(iDebug > 1) {
        if(iStatus == 0) {
          printf("\tEntry......: %d \n", iEntriesRead);
          printf("\tKey length.: %u \n", u32KeyLen);
@@ -198,7 +206,7 @@ std::string strData;
 //              with this delay in the code.
 //              Used to debug named cache reloading
 // ----------------------------------------------------------------------------
-
+#define LOAD_CDB_MAP 1
 #ifdef LOAD_CDB_MAP
      long int ii;
      int jj = 0;
@@ -238,6 +246,9 @@ std::string strData;
   if(fio != NULL) {
     fclose(fio);
     fio = NULL;
+    if(iDebug > 0) {
+      printf("\tCDB File closed....................... \n");
+    }
   }
 
 
