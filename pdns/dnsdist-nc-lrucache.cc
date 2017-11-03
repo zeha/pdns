@@ -4,6 +4,8 @@
 
 #include "config.h"
 
+#include "dolog.hh"
+
 
 #include "dnsdist-nc-lrucache.hh"
 
@@ -14,12 +16,14 @@
 // as all calls are from LUA code.
 // Comment from: https://dnsdist.org/advanced/tuning.html
 //      "Lua processing in dnsdist is serialized by an unique lock for all threads."
+// This should be ok as all calls to lruCache are thru lua with is single threaded for dnsdist
 // ----------------------------------------------------------------------------
 
 
-lruCache::lruCache(size_t maxEntries)
+lruCache::lruCache(int maxEntries)
 {
   iMaxEntries = maxEntries;
+  iDebug = 0;
 }
 
 lruCache::~lruCache()
@@ -27,13 +31,22 @@ lruCache::~lruCache()
   clearLRU();
 }
 
+void lruCache::setDebug(int debug)
+{
+  iDebug = debug;
+}
+
 void lruCache::clearLRU()
 {
   cacheMap.clear();
   cacheList.clear();
-  printf("lruCache::clearLRU() - DEBUG - DEBUG - cleared map & list ......................... \n");
-  int iStat = malloc_trim(0);
-  printf("lruCache::clearLRU() - DEBUG - DEBUG - malloc_trim() - %s ......................... \n", iStat?"Memory Released":"NOT POSSIBLE TO RELEASE MEMORY");
+  if(iDebug & CACHE_DEBUG::DEBUG_DISP) {
+    printf("lruCache::clearLRU() - DEBUG - DEBUG - cleared map & list ......................... \n");
+  }
+  if(iDebug & CACHE_DEBUG::DEBUG_MALLOC_TRIM) {
+    int iStat = malloc_trim(0);
+    warnlog("bindToCDB - Releasing memory to os: %s ", iStat?"Memory Released":"NOT POSSIBLE TO RELEASE MEMORY");
+  }
 
 }
 
@@ -74,9 +87,16 @@ size_t lruCache::size()
 
 // ----------------------------------------------------------------------------
 // ----------------------------------------------------------------------------
-LRUCache::LRUCache()
+LRUCache::LRUCache(int maxEntries)
 {
   ptrCache = new lruCache(0);
+  iDebug = 0;
+}
+
+void LRUCache::setDebug(int debug)
+{
+  iDebug = debug;
+  ptrCache->setDebug(iDebug);
 }
 
 bool LRUCache::setCacheMode(int iMode)
@@ -158,6 +178,7 @@ bool bStatus = false;
     delete ptrCache;
   }
   ptrCache = new lruCache(0);
+  ptrCache->setDebug(iDebug);
   iMaxEntries = 0;
   iMaxEntries = 0;
   return(bStatus);

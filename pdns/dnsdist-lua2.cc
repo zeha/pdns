@@ -822,6 +822,38 @@ void moreLua(bool client)
 //                                          true - found with data
 //                                          false - not found, OR found without data
 //                                  data - string from cdb table match
+//
+//      newDNSDistProtobufMessage() - Ari's function to create a protobuf message 'on the fly'
+//                                    used with remoteLog()
+//                         - parameters:
+//                               DNSQuestion
+//                         - example:
+//                               m = newDNSDistProtobufMessage(dq)
+//                         - return lua object
+//
+//      remoteLog()        - Ari's function to generate a protobuf message 'on the fly'
+//                           used with newDNSDistProtobufMessage()
+//                         - parameters:
+//                               rlBlkLst - object created with newRemoteLogger
+//                               m - object create with newDNSDistProtobufMessage
+//                         - example:
+//                               remoteLog(rlBlkLst, m)
+//
+//      RemoteLogActionX() - Seth's function to modify a protobuf message and allow other actions -  going with Ari's
+//                         - parameters:
+//                               rlBlkLst - object create with newRemoteLogger
+//                               luaCheckLogBLK - lua subroutine to be called
+//                         - example:
+//                               addAction(AllRule(), RemoteLogActionX(rlBlkLst, luaCheckLogBLX))
+//                         - notes:
+//                               function setup to be called has two parameters and must return one
+//                                  parameters:
+//                                      dq - DNSQuestion
+//                                      pbMsg - DNSDistProtoBufMessage
+//                                  return:
+//                                     DNSAction type like DNSAction.Nxdomain or DNSAction.None
+//                               example - luaCheckLogBLX(dq, pbMsg)
+//
 //  Debugging functions:
 //      getErrNum()        - return error message number (errno, from last i/o operation)
 //                         - example:
@@ -867,10 +899,7 @@ void moreLua(bool client)
 	      return;
         }
 
-//      auto localPools = g_namedCaches.getCopy();
-//      auto namedCacheList = g_namedCacheTable;
       createNamedCacheIfNotExists(g_namedCacheTable, strCacheName);
-//      g_namedCaches.setState(localPools);
     });
 
 // ----------------------------------------------------------------------------
@@ -897,12 +926,8 @@ void moreLua(bool client)
 	      return;
         }
 
-//      auto namedCacheList = g_namedCaches.getCopy();
-
-//      auto namedCacheList = g_namedCacheTable;
       std::shared_ptr<NamedCacheX> selectedEntry = createNamedCacheIfNotExists(g_namedCacheTable, strCacheName);
       selectedEntry->namedCache->close();       // remove resources from the 'temp' named cache
-//      g_namedCaches.setState(namedCacheList);
     });
 
 
@@ -960,10 +985,7 @@ void moreLua(bool client)
 	      errlog("Error deleting new named cache, don't use named cache temp prefix.");
 	      return;
         }
-//      auto namedCacheList = g_namedCaches.getCopy();
-//      auto namedCacheList = g_namedCacheTable;
-      deleteNamedCacheEntry(g_namedCacheTable, strCacheName, 0);
-//      g_namedCaches.setState(namedCacheList);
+      deleteNamedCacheEntry(g_namedCacheTable, strCacheName);
     });
 
 
@@ -980,8 +1002,17 @@ void moreLua(bool client)
    * Example:
    * 	
    * 	local nc = getNamedCache("foo")
+   *
+   *    optional debug settings:
+   *            -1 = make empty 'test' cache, allways return 'cache hit'
+   *            bit flags:
+   *             0 = no debugging (default)
+   *             1 = display debugging on console
+   *             2 = slow loading of cdb file for loadFromCDB and reloadNamedCache()
+   *             4 = call linux trim function when closing named cache
+   *             8 = detailed display of cdb data when loading for loadFromCDB
    */
-    g_lua.writeFunction("getNamedCache", [client](const boost::optional<std::string> cacheName) {
+    g_lua.writeFunction("getNamedCache", [client](const boost::optional<std::string> cacheName, const boost::optional<int> debug) {
       setLuaSideEffect();
 
       std::string name = "";
@@ -999,10 +1030,13 @@ void moreLua(bool client)
         return std::make_shared<NamedCacheX>();
       }
 
-//      auto namedCacheList = g_namedCaches.getCopy();
-//      auto namedCacheList = g_namedCacheTable;
-      std::shared_ptr<NamedCacheX> nc = createNamedCacheIfNotExists(g_namedCacheTable, name);
-//      g_namedCaches.setState(namedCacheList);
+      int iDebug = 0;
+      if(debug) {
+        iDebug = *debug;
+        printf("DEBUG - DEBUG - DEBUG - getNamedCache() - debug set to: %d \n", iDebug);
+      }
+
+      std::shared_ptr<NamedCacheX> nc = createNamedCacheIfNotExists(g_namedCacheTable, name, iDebug);
       return nc;
     });
 
@@ -1015,34 +1049,10 @@ void moreLua(bool client)
         if (pool->namedCache) {
           std::shared_ptr<DNSDistNamedCache> nc = pool->namedCache;
           if (nc) {
-            tableResult.insert({"file", nc->getFileName()});   // file used
-            tableResult.insert({"open", nc->isFileOpen() ? "yes" : "no"});             // file open
-            tableResult.insert({"maxEntries", std::to_string(nc->getMaxEntries())});
-            tableResult.insert({"cacheEntries", std::to_string(nc->getCacheEntries())});
-            tableResult.insert({"cacheHits", std::to_string(nc->getCacheHits())});
-            tableResult.insert({"cacheHitsNoData", std::to_string(nc->getCacheHitsNoData())});
-            tableResult.insert({"cdbHits", std::to_string(nc->getCdbHits())});
-            tableResult.insert({"cdbHitsNoData", std::to_string(nc->getCdbHitsNoData())});
-            tableResult.insert({"cacheMiss", std::to_string(nc->getCacheMiss())});
-            tableResult.insert({"errMsg", nc->getErrMsg()});
-            tableResult.insert({"errNum", std::to_string(nc->getErrNum())});
+            nc->getNamedCacheStatusTable(tableResult);
             tableResult.insert({"objCount", std::to_string(nc.use_count())});
-            tableResult.insert({"cacheMode", nc->getCacheModeText()});
-            tableResult.insert({"cacheType", nc->getCacheTypeText(true)});      // load / bind
 
-            time_t tTemp = nc->getCreationTime();
-            struct tm* tm = localtime(&tTemp);
-            char cTimeBuffer[30];
-            strftime(cTimeBuffer, sizeof(cTimeBuffer), "%F %T %z", tm);
-            cTimeBuffer[sizeof(cTimeBuffer)-1] = '\0';
-            tableResult.insert({"creationTime", cTimeBuffer});
-
-            tTemp = nc->getCounterResetTime();
-            tm = localtime(&tTemp);
-            strftime(cTimeBuffer, sizeof(cTimeBuffer), "%F %T %z", tm);
-            cTimeBuffer[sizeof(cTimeBuffer)-1] = '\0';
-            tableResult.insert({"counterResetTime", cTimeBuffer});
-            }
+          }
         }
         return(tableResult);
     });
@@ -1061,50 +1071,9 @@ void moreLua(bool client)
 	    errlog("Cannot show statistics for a nil named cache");
 	    return;
 	  }
-
-	  g_outputBuffer = "Cache type: " + nc->getCacheTypeText(true) + "\n";
-	  g_outputBuffer += "Cache mode: " + nc->getCacheModeText() + "\n";
-
-	  // Pretty-print the creation time of the named cache.
-          time_t tTemp = nc->getCreationTime();
-          struct tm* tm = localtime(&tTemp);
-          char cTimeBuffer[30];
-          strftime(cTimeBuffer, sizeof(cTimeBuffer), "%F %T %z", tm);
-          cTimeBuffer[sizeof(cTimeBuffer)-1] = '\0';
-	  g_outputBuffer += "Creation time: ";
-	  g_outputBuffer += cTimeBuffer;
-	  g_outputBuffer += "\n";
-
-	  g_outputBuffer += "Object count: " + std::to_string(nc.use_count()) + "\n";
-	  g_outputBuffer += "CDB file: " + nc->getFileName() + "\n";
-
-	  std::string fopened = "no";
-	  if (nc->isFileOpen()) {
-	    fopened = "yes";
-	  }
-	  g_outputBuffer += "File opened: " + fopened + "\n";
-	  g_outputBuffer += "Error number: " + std::to_string(nc->getErrNum()) + "\n";
-	  g_outputBuffer += "Error message: " + nc->getErrMsg() + "\n";
-	  g_outputBuffer += "Entries in use: " + std::to_string(nc->getCacheEntries()) + "\n";
-
-	  // Pretty-print the last time the named cache's counters were
-	  // reset.
-          tTemp = nc->getCounterResetTime();
-          tm = localtime(&tTemp);
-          strftime(cTimeBuffer, sizeof(cTimeBuffer), "%F %T %z", tm);
-          cTimeBuffer[sizeof(cTimeBuffer)-1] = '\0';
-	  g_outputBuffer += "Counter reset time: ";
-	  g_outputBuffer += cTimeBuffer;
-	  g_outputBuffer += "\n";
-
-	  g_outputBuffer += "Cache hits: " + std::to_string(nc->getCacheHits()) + "\n";
-	  g_outputBuffer += "Cache hits (no data): " + std::to_string(nc->getCacheHitsNoData()) + "\n";
-	  g_outputBuffer += "CDB hits: " + std::to_string(nc->getCdbHits()) + "\n";
-	  g_outputBuffer += "CDB hits (no data): " + std::to_string(nc->getCdbHitsNoData()) + "\n";
-	  g_outputBuffer += "Cache misses: " + std::to_string(nc->getCacheMiss()) + "\n";
+	  g_outputBuffer = nc->getNamedCacheStatusText();
+	  g_outputBuffer += "Object count....: " + std::to_string(nc.use_count()) + "\n";
         } else {
-	  // Print an error indicating that the specified named cache does not
-	  // exist.
           throw std::runtime_error("Cannot show statistics for a nil named cache");
 	}
       });
@@ -1180,7 +1149,7 @@ void moreLua(bool client)
         if (pool->namedCache) {
           std::shared_ptr<DNSDistNamedCache> nc = pool->namedCache;
           if (nc) {         
-            std::thread t(namedCacheLoadThread, pool, fileName, "MAP", "CDB", 1);
+            std::thread t(namedCacheLoadThread, pool, fileName, "MAP", "CDB", 1,  CACHE_DEBUG::DEBUG_SLOW_LOAD | CACHE_DEBUG::DEBUG_MALLOC_TRIM);
 	        t.detach();
             return true;
 	  }
@@ -1233,7 +1202,7 @@ void moreLua(bool client)
 	      csize = *maxEntries;
 	    }
 
-        std::thread t(namedCacheLoadThread, pool, fileName, "LRU", cmode, csize);
+        std::thread t(namedCacheLoadThread, pool, fileName, "LRU", cmode, csize,  CACHE_DEBUG::DEBUG_MALLOC_TRIM);
 	    t.detach();
 	    return true;
 	  }
@@ -1336,55 +1305,6 @@ void moreLua(bool client)
     return tableResult;
    });
 
-// ----------------------------------------------------------------------------
-// Seth - GCA - Experimental - 10/22/2017 - this version does NOT use pointer for DNSQuestion parameter --- used to debug problem with RemoteLogActionX
-// this code needs to go away and only use lookupQ
-// ----------------------------------------------------------------------------
-    g_lua.registerFunction<std::unordered_map<string, boost::variant<string, bool> >(std::shared_ptr<NamedCacheX>::*)(DNSQuestion& dq)>("lookupZ", [](const std::shared_ptr<NamedCacheX> pool, DNSQuestion& dq) {
-    std::unordered_map<string, boost::variant<string, bool>> tableResult;
-//    printf("lookupZ - DEBUG DEBUG DEBUG #0 \n");
-
-    if (! (pool->namedCache)) {
-      return tableResult;
-    }
-    std::shared_ptr<DNSDistNamedCache> nc = pool->namedCache;
-
-
-//    printf("lookupZ - DEBUG DEBUG DEBUG #1 \n");
-
-    // Normalize the query, by converting it to lower-case, and remove the
-    // trailing period, if there is one.
-    std::string strQuery = toLower(dq.qname->toString());       // *****
-    if(strQuery.back() == '.') {
-      strQuery.pop_back();
-    }
-    if (strQuery.length() == 0) {
-      throw std::runtime_error("The DNS question's QNAME is a zero-length string");
-    }
-
-    std::string strRet;
-    int hitType = nc->lookup(strQuery, strRet);
-    bool found = !(hitType == CACHE_HIT::HIT_NONE);
-
-    tableResult.insert({"found", found});
-    tableResult.insert({"data", strRet});
-
-//    printf("lookupZ - DEBUG DEBUG DEBUG #2 \n");
-
-    // Make sure the DNSQuestion.QTag field is initialized, and add the
-    // qtags to the DNSQuestion.
-    if(dq.qTag == nullptr) {                // *****
-      dq.qTag = std::make_shared<QTag>();   // *****
-    }
-
-    dq.qTag->add("found", std::string(found ? "yes": "no"));     // ****
-    if (found) {
-      dq.qTag->add("data", strRet);         // ****
-    }
-//    printf("lookupZ - DEBUG DEBUG DEBUG #3 \n");
-
-    return tableResult;
-   });
 
 #endif // HAVE_NAMEDCACHE
 
@@ -1503,15 +1423,6 @@ void moreLua(bool client)
 // Seth - GCA - Experimental - 10/22/2017
 // ----------------------------------------------------------------------------
 
-#ifdef TRASH
-    g_lua.writeFunction("RemoteLogActionX_old", [](std::shared_ptr<RemoteLogger> logger, boost::optional<std::function<int(const DNSQuestion&, DNSDistProtoBufMessage*)> > alterFuncX) {
-#ifdef HAVE_PROTOBUF
-        return std::shared_ptr<DNSAction>(new RemoteLogActionX(logger, alterFuncX));
-#else
-        throw std::runtime_error("Protobuf support is required to use RemoteLogActionX");
-#endif
-      });
-#endif
     g_lua.writeFunction("RemoteLogActionX", [](std::shared_ptr<RemoteLogger> logger, boost::optional<std::function<int(DNSQuestion*, DNSDistProtoBufMessage*)> > alterFuncX) {
 #ifdef HAVE_PROTOBUF
         return std::shared_ptr<DNSAction>(new RemoteLogActionX(logger, alterFuncX));
@@ -1523,7 +1434,6 @@ void moreLua(bool client)
 // ----------------------------------------------------------------------------
 // Seth - GCA - Experimental - 10/22/2017 - Ari's code
 // ----------------------------------------------------------------------------
-
 
     g_lua.writeFunction("newDNSDistProtobufMessage", [](DNSQuestion *dq) {
 #ifdef HAVE_PROTOBUF

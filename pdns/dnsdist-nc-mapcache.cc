@@ -5,12 +5,15 @@
 
 #include "config.h"
 
+#include "dolog.hh"
+
 #include "dnsdist-nc-mapcache.hh"
 
 #ifdef HAVE_NAMEDCACHE
 
 CdbMapCache::CdbMapCache()
 {
+  iDebug = 0;
   iErrNum = 0;
   iEntriesRead = 0;
   mapKeyData.clear();
@@ -21,13 +24,22 @@ CdbMapCache::~CdbMapCache()
   close();
 }
 
+void CdbMapCache::setDebug(int debug)
+{
+  iDebug = debug;
+}
+
 bool CdbMapCache::close()
 {
   iEntriesRead = 0;
   mapKeyData.clear();                   // 10/25/2017 - clear map
-  printf("lruCache::close() - DEBUG - DEBUG - cleared mapKeyData ......................... \n");
-  int iStat = malloc_trim(0);
-  printf("lruCache::close() - DEBUG - DEBUG - malloc_trim() - %s ......................... \n", iStat?"Memory Released":"NOT POSSIBLE TO RELEASE MEMORY");
+  if(iDebug & CACHE_DEBUG::DEBUG_DISP) {
+    printf("CdbMapCache::close() - DEBUG - DEBUG - cleared mapKeyData ......................... \n");
+  }
+  if(iDebug & CACHE_DEBUG::DEBUG_MALLOC_TRIM) {
+    int iStat = malloc_trim(0);
+    warnlog("loadFromCDB - Releasing memory to os: %s ", iStat?"Memory Released":"NOT POSSIBLE TO RELEASE MEMORY");
+  }
   return(true);
 }
 
@@ -35,7 +47,7 @@ bool CdbMapCache::open(std::string strFileName)
 {
 std::string strErrNo;
 
-  int iStatus = loadCdbMap(strFileName, false);          // true for debugging
+  int iStatus = loadCdbMap(strFileName);
   if(iStatus >= 0) {
     strErrMsg = "";
     return(true);
@@ -123,7 +135,7 @@ char buf[512];              // limiting length of data....
 // of key length starting data record.
 //
 // ----------------------------------------------------------------------------
-int CdbMapCache::loadCdbMap(std::string strCdbName, int iDebug)
+int CdbMapCache::loadCdbMap(std::string strCdbName)
 {
 int iStatus = 0;
 FILE *fio = NULL;
@@ -158,7 +170,7 @@ std::string strData;
         break;
       }
       if(iStatus == 0) {
-        if(iDebug > 1) {
+        if(iDebug & CACHE_DEBUG::DEBUG_DISP_LOAD_DETAIL) {
           printf("\t%3.3d   HashOff: %u   HashEntires: %u \n", ii, u32HashOffset, u32HashEntries);
         }
       }
@@ -189,7 +201,7 @@ std::string strData;
          }
      }
 
-     if(iDebug > 1) {
+     if(iDebug & CACHE_DEBUG::DEBUG_DISP_LOAD_DETAIL) {
        if(iStatus == 0) {
          printf("\tEntry......: %d \n", iEntriesRead);
          printf("\tKey length.: %u \n", u32KeyLen);
@@ -199,46 +211,16 @@ std::string strData;
        }
      }
 
-
-// ----------------------------------------------------------------------------
-// GCA - Seth - 10/20/2017 Experimental Debugging....... SLOW LOADING FROM DISK
-//              This takes about 11 secs to load 800,000 entries
-//              with this delay in the code.
-//              Used to debug named cache reloading
-// ----------------------------------------------------------------------------
-#define LOAD_CDB_MAP 1
-#ifdef LOAD_CDB_MAP
-     long int ii;
-     int jj = 0;
-     for(ii=0; ii < 30; ii++) {
-        long int kk = 0;
-        for(kk=0; kk < 1; kk++) {
-           long int ll = 0;
-            for(ll=0; ll < 1; ll++) {
-               jj+=300;
-               jj/= 7;
-               jj*=300;
-               jj/= 5;
-               long int mm = 0;
-               for(mm = 0; mm < 2; mm++)  {
-                  auto xx = mapKeyData.find("xxx");
-                  if (xx == mapKeyData.end()) {
-                    jj += 1;
-                  }
-               }
-            }
-        }
+     if(iDebug & CACHE_DEBUG::DEBUG_SLOW_LOAD) {
+       wasteTimeBeforeInsert();         // slow down disk load time for background debugging
      }
-#endif
-
-// ----------------------------------------------------------------------------
 
      mapKeyData.insert ( std::pair<std::string, std::string>(strKey, strData) );
      iEntriesRead++;
     }
   }
 
-  if(iDebug > 0) {
+  if(iDebug & CACHE_DEBUG::DEBUG_DISP) {
      off_t ofLoc = ftell(fio);
      printf("\tCurrent loc: %lu \n", ofLoc);
   }
@@ -246,13 +228,41 @@ std::string strData;
   if(fio != NULL) {
     fclose(fio);
     fio = NULL;
-    if(iDebug > 0) {
+    if(iDebug & CACHE_DEBUG::DEBUG_DISP) {
       printf("\tCDB File closed....................... \n");
     }
   }
 
 
   return(iStatus);
+}
+
+// ----------------------------------------------------------------------------
+// wasteTimeBeforeInsert() - used for debugging background loading of mapcache
+// ----------------------------------------------------------------------------
+void CdbMapCache::wasteTimeBeforeInsert()
+{
+       long int ii;
+       int jj = 0;
+       for(ii=0; ii < 30; ii++) {
+          long int kk = 0;
+          for(kk=0; kk < 1; kk++) {
+             long int ll = 0;
+              for(ll=0; ll < 1; ll++) {
+                 jj+=300;
+                 jj/= 7;
+                 jj*=300;
+                 jj/= 5;
+                 long int mm = 0;
+                 for(mm = 0; mm < 2; mm++)  {
+                    auto xx = mapKeyData.find("xxx");
+                    if (xx == mapKeyData.end()) {
+                      jj += 1;
+                    }
+                 }
+              }
+          }
+       }
 }
 
 int CdbMapCache::getErrNum()
