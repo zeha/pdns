@@ -13,6 +13,7 @@ class CdbMapCache : public NamedCache {
 public:
    CdbMapCache();
    ~CdbMapCache();
+   void  setDebug(int debug);
    bool  setCacheMode(int iMode);
    bool  init(int capacity, int iCacheMode);
    bool  open(std::string strFileName);
@@ -24,13 +25,15 @@ public:
    int   getCache(const std::string strKey, std::string &strValue);
    bool  setSize(int iEntries);
 private:
+   int iDebug;
    int iEntriesRead;
    int iCacheMode;                       // not used at present
    int iErrNum;                          // errno
    std::string strErrMsg;
    std::map<std::string, std::string> mapKeyData;
 
-   int  loadCdbMap(std::string strCdbName, int iDebug=0);
+   int  loadCdbMap(std::string strCdbName);
+   void wasteTimeBeforeInsert();
    void uint32_unpack(char s[4],uint32_t *u);
    int  getNum(FILE *fio, uint32_t &u32Num);
    int  getText(FILE *fio, unsigned int uBytes, std::string &strData);

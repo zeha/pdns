@@ -18,6 +18,11 @@ cdbIO::~cdbIO()
   close();
 }
 
+void cdbIO::setDebug(int debug)
+{
+  iDebug = debug;
+}
+
 bool cdbIO::open(std::string strCdbName)
 {
 bool bStatus = false;

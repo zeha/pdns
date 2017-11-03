@@ -13,6 +13,7 @@ class NoCache : public NamedCache {
 public:
    NoCache();
    ~NoCache();
+   void  setDebug(int debug=0);
    bool  setCacheMode(int iMode);
    bool  init(int capacity, int iCacheMode);
    bool  open(std::string strFileName);
@@ -24,6 +25,8 @@ public:
    int   getCache(const std::string strKey, std::string &strValue);
    bool  setSize(int iEntries);
 private:
+   int iDebug;
+   int iCacheMode;       // CACHE::NONE, CACHE::RPZ, CACHE::ALL, CACHE::TEST
 
 };
 
@@ -32,6 +35,7 @@ class CdbNoCache : public NamedCache {
 public:
    CdbNoCache();
    ~CdbNoCache();
+   void  setDebug(int debug=0);
    bool  setCacheMode(int iMode);
    bool  init(int capacity, int iCacheMode);
    bool  open(std::string strFileName);
@@ -43,6 +47,7 @@ public:
    int   getCache(const std::string strKey, std::string &strValue);
    bool  setSize(int iEntries);
 private:
+   int iDebug;
    cdbIO cdbFH;
 
 };

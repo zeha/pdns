@@ -5,7 +5,38 @@
 
 NamedCache::NamedCache()
 {
+  iDebug = 0;
 //    std::cout << "NamedCache() \n";
+}
+
+void NamedCache::setDebug(int debug)
+{
+  iDebug = debug;
+}
+
+
+std::string NamedCache::getDebugText(int debug)
+{
+  std::string strMsg = "???";
+  if(debug != 0) {
+    switch(debug) {
+    case CACHE_DEBUG::DEBUG_DISP:
+      strMsg = "DEBUG DISPLAY \n";
+      break;
+    case CACHE_DEBUG::DEBUG_SLOW_LOAD:
+      strMsg = "DEBUG SLOW LOAD \n";
+      break;
+    case CACHE_DEBUG::DEBUG_MALLOC_TRIM:
+      strMsg = "DEBUG MALLOC TRIM \n";
+      break;
+    case CACHE_DEBUG::DEBUG_DISP_LOAD_DETAIL:
+      strMsg = "DEBUG DISPLAY LOAD DETAIL \n";
+      break;
+    default:
+      break;
+  }
+  }
+  return(strMsg);
 }
 
 std::string NamedCache::getFoundText(int iStat)
@@ -49,6 +80,9 @@ std::string strFound;
   case CACHE_MODE::MODE_ALL:
     strFound = "ALL";
     break;
+  case CACHE_MODE::MODE_TEST:
+    strFound = "Test";
+    break;
   default:
     strFound = "????";
     break;
@@ -69,6 +103,9 @@ std::string strTemp;
   }
   if(strTemp == "all") {
     return(CACHE_MODE::MODE_ALL);
+  }
+  if(strTemp == "test") {
+    return(CACHE_MODE::MODE_TEST);
   }
 
   return( CACHE_MODE::MODE_NONE);

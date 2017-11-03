@@ -18,6 +18,7 @@ public:
 
 cdbIO();
 ~cdbIO();
+void setDebug(int debug);
 bool open(std::string strCdbName);
 bool close();
 bool get(std::string strKey, std::string &strValue);
@@ -25,6 +26,7 @@ int  getErrNum();
 std::string getErrMsg();
 
 private:
+  int iDebug;
   int fd;                               // cdb file descriptor
   struct cdb cdbX;                      // cdb file info
   std::string strErrMsg;                // cdb error message
