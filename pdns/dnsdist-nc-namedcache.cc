@@ -3,10 +3,11 @@
 
 #ifdef HAVE_NAMEDCACHE
 
+// GCA - virtual functions for named caches
+
 NamedCache::NamedCache()
 {
   iDebug = 0;
-//    std::cout << "NamedCache() \n";
 }
 
 void NamedCache::setDebug(int debug)
@@ -17,24 +18,31 @@ void NamedCache::setDebug(int debug)
 
 std::string NamedCache::getDebugText(int debug)
 {
-  std::string strMsg = "???";
+string strMsg;
+
   if(debug != 0) {
-    switch(debug) {
-    case CACHE_DEBUG::DEBUG_DISP:
-      strMsg = "DEBUG DISPLAY \n";
-      break;
-    case CACHE_DEBUG::DEBUG_SLOW_LOAD:
-      strMsg = "DEBUG SLOW LOAD \n";
-      break;
-    case CACHE_DEBUG::DEBUG_MALLOC_TRIM:
-      strMsg = "DEBUG MALLOC TRIM \n";
-      break;
-    case CACHE_DEBUG::DEBUG_DISP_LOAD_DETAIL:
-      strMsg = "DEBUG DISPLAY LOAD DETAIL \n";
-      break;
-    default:
-      break;
-  }
+    strMsg = "DEBUG ";
+    for(int ii=0; ii < 32; ii++) {
+       switch(debug & (0x01 << ii)) {
+       case CACHE_DEBUG::DEBUG_DISP:
+         strMsg += "DISPLAY ";
+         break;
+       case CACHE_DEBUG::DEBUG_SLOW_LOAD:
+         strMsg += "SLOW_LOAD ";
+         break;
+       case CACHE_DEBUG::DEBUG_MALLOC_TRIM:
+         strMsg += "MALLOC_TRIM ";
+         break;
+       case CACHE_DEBUG::DEBUG_DISP_LOAD_DETAIL:
+         strMsg += "DISPLAY_LOAD_DETAIL ";
+         break;
+       case CACHE_DEBUG::DEBUG_TEST_ALWAYS_HIT:
+         strMsg += "TEST_ALWAYS_HIT ";
+         break;
+       default:
+         break;
+       }
+    }
   }
   return(strMsg);
 }
@@ -81,7 +89,7 @@ std::string strFound;
     strFound = "ALL";
     break;
   case CACHE_MODE::MODE_TEST:
-    strFound = "Test";
+    strFound = "TEST";
     break;
   default:
     strFound = "????";

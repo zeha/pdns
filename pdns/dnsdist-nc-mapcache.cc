@@ -1,4 +1,3 @@
-// malloc is for malloc_trim() test
 
 #include <malloc.h>
 
@@ -10,6 +9,8 @@
 #include "dnsdist-nc-mapcache.hh"
 
 #ifdef HAVE_NAMEDCACHE
+
+// GCA - map cache where all entries exist in memory
 
 CdbMapCache::CdbMapCache()
 {
@@ -34,11 +35,11 @@ bool CdbMapCache::close()
   iEntriesRead = 0;
   mapKeyData.clear();                   // 10/25/2017 - clear map
   if(iDebug & CACHE_DEBUG::DEBUG_DISP) {
-    printf("CdbMapCache::close() - DEBUG - DEBUG - cleared mapKeyData ......................... \n");
+    warnlog("DEBUG - CdbMapCache::close() - cleared mapKeyData ");
   }
   if(iDebug & CACHE_DEBUG::DEBUG_MALLOC_TRIM) {
     int iStat = malloc_trim(0);
-    warnlog("loadFromCDB - Releasing memory to os: %s ", iStat?"Memory Released":"NOT POSSIBLE TO RELEASE MEMORY");
+    warnlog("DEBUG - loadFromCDB() - Releasing memory to os: %s ", iStat?"Memory Released":"NOT POSSIBLE TO RELEASE MEMORY");
   }
   return(true);
 }
@@ -62,9 +63,6 @@ std::string strErrNo;
   return(false);
 }
 
-// ----------------------------------------------------------------------------
-// from uint32_unpack
-// ----------------------------------------------------------------------------
 void CdbMapCache::uint32_unpack(char s[4],uint32_t *u)
 {
   uint32_t result;
@@ -108,7 +106,6 @@ char buf[512];              // limiting length of data....
   return(0);
 }
 
-// ----------------------------------------------------------------------------
 // loadCdbMap() - load entire cdb into map
 //
 // From: https://manpages.debian.org/jessie/tinycdb/cdb.5.en.html
@@ -134,7 +131,6 @@ char buf[512];              // limiting length of data....
 // Record position is bytes from the beginning of a file to first byte
 // of key length starting data record.
 //
-// ----------------------------------------------------------------------------
 int CdbMapCache::loadCdbMap(std::string strCdbName)
 {
 int iStatus = 0;
@@ -171,7 +167,7 @@ std::string strData;
       }
       if(iStatus == 0) {
         if(iDebug & CACHE_DEBUG::DEBUG_DISP_LOAD_DETAIL) {
-          printf("\t%3.3d   HashOff: %u   HashEntires: %u \n", ii, u32HashOffset, u32HashEntries);
+          warnlog("\t%3.3d   HashOff: %u   HashEntires: %u ", ii, u32HashOffset, u32HashEntries);
         }
       }
     }
@@ -203,11 +199,11 @@ std::string strData;
 
      if(iDebug & CACHE_DEBUG::DEBUG_DISP_LOAD_DETAIL) {
        if(iStatus == 0) {
-         printf("\tEntry......: %d \n", iEntriesRead);
-         printf("\tKey length.: %u \n", u32KeyLen);
-         printf("\tData length: %u \n", u32DataLen);
-         printf("\tKey........: %s \n", strKey.c_str());
-         printf("\tData.......: %s \n", strData.c_str());
+         warnlog("\tEntry......: %d ", iEntriesRead);
+         warnlog("\tKey length.: %u ", u32KeyLen);
+         warnlog("\tData length: %u ", u32DataLen);
+         warnlog("\tKey........: %s ", strKey.c_str());
+         warnlog("\tData.......: %s ", strData.c_str());
        }
      }
 
@@ -222,14 +218,14 @@ std::string strData;
 
   if(iDebug & CACHE_DEBUG::DEBUG_DISP) {
      off_t ofLoc = ftell(fio);
-     printf("\tCurrent loc: %lu \n", ofLoc);
+     warnlog("\tCurrent loc: %lu ", ofLoc);
   }
 
   if(fio != NULL) {
     fclose(fio);
     fio = NULL;
     if(iDebug & CACHE_DEBUG::DEBUG_DISP) {
-      printf("\tCDB File closed....................... \n");
+     warnlog("\tCDB File closed ");
     }
   }
 
@@ -237,9 +233,7 @@ std::string strData;
   return(iStatus);
 }
 
-// ----------------------------------------------------------------------------
 // wasteTimeBeforeInsert() - used for debugging background loading of mapcache
-// ----------------------------------------------------------------------------
 void CdbMapCache::wasteTimeBeforeInsert()
 {
        long int ii;
@@ -281,10 +275,10 @@ bool CdbMapCache::setCacheMode(int iMode)
   return(true);
 }
 
-bool CdbMapCache::init(int iEntries, int iCacheMode)      // not used at present
+bool CdbMapCache::init(int iEntries, int iCacheMode)
 {
   setCacheMode(iCacheMode);
-  iEntries = 0;           // not used
+  iEntries = 0;
   return(true);
 }
 
@@ -310,9 +304,7 @@ bool CdbMapCache::get(std::string strKey, std::string &strData)
   return(false);
 }
 
-// ----------------------------------------------------------------------------
-// getCDBCache() - read from cache / cdb - strValue cleared if not written to
-// ----------------------------------------------------------------------------
+// read from cache / cdb - strValue cleared if not written to
 int CdbMapCache::getCache(const std::string strKey, std::string &strValue)
 {
 
