@@ -19,8 +19,7 @@
 
 
 
-// ----------------------------------------------------------------------------
-// Seth - GCA - named cache - 8/28/2017
+// GCA - named cache - 8/28/2017
 //  Notes:
 //
 //      DNSDistNamedCache(filename, iReqMode, maxEntries, iDebug)
@@ -54,7 +53,7 @@
 //              strData  - return string with contents of cdb entry, else empty string
 //
 //       reset() - reset the object to be that of type none.
-// ----------------------------------------------------------------------------
+//
 
 #ifdef HAVE_NAMEDCACHE
 
@@ -118,9 +117,7 @@ private:
   int deltaCount;
 };
 
-// ----------------------------------------------------------------------------
-// GCA - Seth - NamedCache Table 8/31/2017
-// ----------------------------------------------------------------------------
+// NamedCache Table 8/31/2017
 
 struct NamedCacheX
 {

@@ -158,13 +158,9 @@ struct DNSResponse : DNSQuestion
   const struct timespec* queryTime;
 };
 
-// ----------------------------------------------------------------------------
-// Seth - GCA - copy qTag data into response object from question - 8/23/2017
-// ----------------------------------------------------------------------------
-
+// GCA - copy qTag data into response object from question - 8/23/2017
 extern int copyQTag(DNSResponse &dr, const std::shared_ptr<QTag> qTagData);
 
-// ----------------------------------------------------------------------------
 
 /* so what could you do: 
    drop, 
@@ -719,22 +715,6 @@ void setPoolPolicy(pools_t& pools, const string& poolName, std::shared_ptr<Serve
 void addServerToPool(pools_t& pools, const string& poolName, std::shared_ptr<DownstreamState> server);
 void removeServerFromPool(pools_t& pools, const string& poolName, std::shared_ptr<DownstreamState> server);
 
-// ----------------------------------------------------------------------------
-// GCA - Seth - NamedCache 8/31/2017
-
-#ifdef HAVE_NAMEDCACHE_XXXXXXXXXXXXXXXX
-
-struct NamedCacheX
-{
-  std::shared_ptr<DNSDistNamedCache> namedCache{nullptr};
-};
-
-using namedCaches_t=map<std::string, std::shared_ptr<NamedCacheX>>;
-extern GlobalStateHolder<namedCaches_t> g_namedCaches;
-
-#endif
-
-// ----------------------------------------------------------------------------
 
 struct CarbonConfig
 {

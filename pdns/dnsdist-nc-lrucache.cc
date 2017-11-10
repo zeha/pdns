@@ -1,4 +1,3 @@
-// malloc is for malloc_trim() test
 
 #include <malloc.h>
 
@@ -11,13 +10,13 @@
 
 #ifdef HAVE_NAMEDCACHE
 
-// ----------------------------------------------------------------------------
-// lruCache is not thread safe, as it doesn't have to be
-// as all calls are from LUA code.
+// GCA - least recently used cache for named caches
+// Note that even though lruCache is not thread safe,
+// it doesn't have to be as all calls are from LUA code.
+//
 // Comment from: https://dnsdist.org/advanced/tuning.html
 //      "Lua processing in dnsdist is serialized by an unique lock for all threads."
 // This should be ok as all calls to lruCache are thru lua with is single threaded for dnsdist
-// ----------------------------------------------------------------------------
 
 
 lruCache::lruCache(int maxEntries)
@@ -41,7 +40,7 @@ void lruCache::clearLRU()
   cacheMap.clear();
   cacheList.clear();
   if(iDebug & CACHE_DEBUG::DEBUG_DISP) {
-    printf("lruCache::clearLRU() - DEBUG - DEBUG - cleared map & list ......................... \n");
+    warnlog("lruCache::clearLRU() - DEBUG - DEBUG - cleared map & list ......................... \n");
   }
   if(iDebug & CACHE_DEBUG::DEBUG_MALLOC_TRIM) {
     int iStat = malloc_trim(0);
@@ -85,8 +84,7 @@ size_t lruCache::size()
   return cacheMap.size();
 }
 
-// ----------------------------------------------------------------------------
-// ----------------------------------------------------------------------------
+// LRCCache object
 LRUCache::LRUCache(int maxEntries)
 {
   ptrCache = new lruCache(0);
@@ -166,9 +164,7 @@ bool bStatus = false;
   return(bStatus);
 }
 
-// ----------------------------------------------------------------------------
-// close() - close down lru cache & free up resources
-// ----------------------------------------------------------------------------
+//  close down lru cache & free up resources
 bool LRUCache::close()
 {
 bool bStatus = false;
@@ -184,9 +180,7 @@ bool bStatus = false;
   return(bStatus);
 }
 
-// ----------------------------------------------------------------------------
-// getCDBCache() - read from cache / cdb - strValue cleared if not written to
-// ----------------------------------------------------------------------------
+//  read from cache / cdb - strValue cleared if not written to
 int LRUCache::getCache(const std::string strKey, std::string &strValue)
 {
 

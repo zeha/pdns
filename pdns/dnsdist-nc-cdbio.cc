@@ -2,10 +2,9 @@
 
 #ifdef HAVE_NAMEDCACHE
 
-// ----------------------------------------------------------------------------
-// openCDB()
+// GCA - low level cdbio reading for named cache
 // see:  http://cr.yp.to/cdb/reading.html
-// ----------------------------------------------------------------------------
+
 cdbIO::cdbIO()
 {
   fd = -1;
@@ -60,11 +59,9 @@ bool bStatus = false;
   return(bStatus);
 }
 
-// ----------------------------------------------------------------------------
 // getCDB() - lookup key in cdb and set value if found
 //            assume that there is only one entry for a key
 //            return true if found
-// ----------------------------------------------------------------------------
 bool cdbIO::get(std::string strKey, std::string &strValue)
 {
 bool bStatus = false;

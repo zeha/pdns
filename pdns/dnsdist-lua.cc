@@ -1691,9 +1691,7 @@ vector<std::function<void(void)>> setupLua(bool client, const std::string& confi
       }
     });
 
-// ----------------------------------------------------------------------------------------------------------
-// GCA - Seth - 9/1/2017
-// ----------------------------------------------------------------------------------------------------------
+// GCA - 9/1/2017 - get tag array data
   g_lua.registerFunction<std::unordered_map<string, string>(DNSResponse::*)(void)>("getTagArrayResp", [](const DNSQuestion& dq) {
 
       if(dq.qTag != nullptr) {
@@ -1703,7 +1701,6 @@ vector<std::function<void(void)>> setupLua(bool client, const std::string& confi
         return XX;
       }
     });
-// ----------------------------------------------------------------------------------------------------------
 
   /* DNSQuestion bindings */
   /* PowerDNS DNSQuestion compat */

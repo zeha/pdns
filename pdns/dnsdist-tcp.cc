@@ -543,7 +543,7 @@ void* tcpClientThread(int pipefd)
         DNSResponse dr(&qname, qtype, qclass, &dest, &ci.remote, dh, responseSize, responseLen, true, &queryRealTime);
 
 // ----------------------------------------------------------------------------
-// Seth - GCA - copy qTag data into response object from question - 8/23/2017
+// GCA - copy qTag data into response object from question - 8/23/2017
 //              allows normal cache hit to pass qTag data
 //              however still problems with normal non cache as the
 //              response object is created differently up above on line 430
