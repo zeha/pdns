@@ -732,7 +732,7 @@ void moreLua(bool client)
 // ----------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------
-// Seth - GCA - named cache - 10/4/2017
+// GCA - named cache - 10/4/2017
 //      see dnsdist config file pdns/zzz-gca-example/dnsdist-named-cache-B.conf for examples.
 // ----------------------------------------------------------------------------
 // new lua functions - 10/10/2017
@@ -758,11 +758,6 @@ void moreLua(bool client)
 //                          [maxEntries] - maxEntries if it is going to be changed, only works if "bindToCDB" type named cache.
 //                        - example:reloadNamedCache("xxx")
 // ----------------------------------------------------------------------------
-//  Experimental - 10/20/2017 - Seth
-//
-//      reloadNamedCacheBkg()        - reload in background
-//
-// ----------------------------------------------------------------------------
 //
 // NamedCacheX methods:
 //      getNamedCache([strCacheName]) - get named cache ptr, create if not exist
@@ -773,6 +768,7 @@ void moreLua(bool client)
 //      getStats()         - get statistics in a table
 //                         - example:
 //                               tableStat2 = ncx:getStats()
+//                               getNamedCache("xxx"):getStats()
 //      showStats()        - directly print out statistics to terminal
 //                         - example:
 //                               getNamedCache("xxx"):showStats()
@@ -864,12 +860,6 @@ void moreLua(bool client)
 // ----------------------------------------------------------------------------
 
 
-
-// ----------------------------------------------------------------------------
-// showNamedCaches() - show all the named caches
-//                   - example: showNamedCaches()
-// ----------------------------------------------------------------------------
-
     g_lua.writeFunction("showNamedCaches", []() {
       setLuaNoSideEffect();
       try {
@@ -877,38 +867,52 @@ void moreLua(bool client)
       }catch(std::exception& e) { g_outputBuffer=e.what(); throw; }
     });
 
+  /* newNamedCache(cacheName)
+   *
+   * Create a named cache if it doesn't exist, does not return anything.
+   *
+   * Example:
+   *
+   * 	newNamedCache("foo")
+   *
+   *    optional debug settings:
+   *            bit flags:
+   *             0 = no debugging (default)
+   *             1 = display debugging on console
+   *             2 = slow loading of cdb file for loadFromCDB and reloadNamedCache()
+   *             4 = call linux trim function when closing named cache
+   *             8 = detailed display of cdb data when loading for loadFromCDB
+   *            16 = make empty 'test' cache, allways return 'cache hit'
+   */
 
-// ----------------------------------------------------------------------------
-// newNamedCache() - create a named cache, doesn't return pointer
-//                 - example: addNamedCache("yyy")
-// ----------------------------------------------------------------------------
-  g_lua.writeFunction("newNamedCache", [](const boost::optional<std::string> cacheName) {
+  g_lua.writeFunction("newNamedCache", [](const boost::optional<std::string> cacheName, const boost::optional<int> debug) {
       setLuaSideEffect();
       std::string strCacheName ="";
       if(cacheName) {
         strCacheName = *cacheName;
       }
       if(strCacheName.length() == 0) {
-          g_outputBuffer="Error creating new named cache, no name supplied.";
-	      errlog("Error creating new named cache, no name supplied");
+          const char *strMsg = "Error creating new named cache, no name supplied.";
+          g_outputBuffer=strMsg;
+	      errlog(strMsg);
 	      return;
         }
       if(boost::starts_with(strCacheName, g_namedCacheTempPrefix)) {
-          g_outputBuffer="Error creating new named cache, don't use named cache temp prefix.";
-	      errlog("Error creating new named cache, don't use named cache temp prefix.");
+          const char *strMsg = "Error creating new named cache, don't use named cache temp prefix.";
+          g_outputBuffer= strMsg;
+	      errlog(strMsg);
 	      return;
         }
 
-      createNamedCacheIfNotExists(g_namedCacheTable, strCacheName);
+      int iDebug = 0;
+      if(debug) {
+        iDebug = *debug;
+        warnlog("DEBUG - newNamedCache() - debug flag set to: %d - %s ", iDebug, NamedCache::getDebugText(iDebug).c_str());
+      }
+
+      createNamedCacheIfNotExists(g_namedCacheTable, strCacheName, iDebug);
     });
 
-// ----------------------------------------------------------------------------
-// closeNamedCache() - close a named cache, does the same thing as addNamedCache
-//                     is used to free up resources used by a no longer needed cache
-//                     unlike deleteNamedCache() this function will leave a
-//                     working empty named cache
-//                   - example: closeNamedCache("yyy")
-// ----------------------------------------------------------------------------
   g_lua.writeFunction("closeNamedCache", [](const boost::optional<std::string> cacheName) {
       setLuaSideEffect();
       std::string strCacheName ="";
@@ -916,13 +920,15 @@ void moreLua(bool client)
         strCacheName = *cacheName;
       }
       if(strCacheName.length() == 0) {
-          g_outputBuffer="Error closing named cache, no name supplied.";
-	      errlog("Error closing named cache, no name supplied");
+          const char *strMsg = "Error closing named cache, no name supplied.";
+          g_outputBuffer=strMsg;
+	      errlog(strMsg);
 	      return;
         }
       if(boost::starts_with(strCacheName, g_namedCacheTempPrefix)) {
-          g_outputBuffer="Error closing named cache, don't use named cache temp prefix.";
-	      errlog("Error closing named cache, don't use named cache temp prefix.");
+          const char *strMsg = "Error closing named cache, don't use named cache temp prefix.";
+          g_outputBuffer=strMsg;
+	      errlog(strMsg);
 	      return;
         }
 
@@ -930,17 +936,6 @@ void moreLua(bool client)
       selectedEntry->namedCache->close();       // remove resources from the 'temp' named cache
     });
 
-
-
-// ----------------------------------------------------------------------------
-// GCA - Seth - 10/21/2017 Experimental.......
-// ----------------------------------------------------------------------------
-// reloadNamedCache() - reload a named caches, doesn't return pointer - in background
-//                   - parameters:
-//                     strCacheName - named cache to reload
-//                     [maxEntries] - maxEntries if it is going to be changed, only works if "bindToCDB" type named cache.
-//                   - example:reloadNamedCache("xxx")
-// ----------------------------------------------------------------------------
   g_lua.writeFunction("reloadNamedCache", [](const boost::optional<std::string> cacheName, boost::optional<int> maxEntries) {
       setLuaSideEffect();
       std::string strCacheNameA = "";
@@ -948,13 +943,15 @@ void moreLua(bool client)
         strCacheNameA = *cacheName;
       }
       if(strCacheNameA.length() == 0) {
-          g_outputBuffer="Error reloading named cache, no name supplied.";
-	      errlog("Error reloading named cache, no name supplied");
+          const char *strMsg = "Error reloading named cache, no name supplied.";
+          g_outputBuffer=strMsg;
+	      errlog(strMsg);
 	      return;
         }
       if(boost::starts_with(strCacheNameA, g_namedCacheTempPrefix)) {
-          g_outputBuffer="Error reloading named cache, don't use named cache temp prefix.";
-	      errlog("Error reloading named cache, don't use named cache temp prefix.");
+          const char *strMsg = "Error reloading named cache, don't use named cache temp prefix.";
+          g_outputBuffer=strMsg;
+	      errlog(strMsg);
 	      return;
         }
 
@@ -963,12 +960,6 @@ void moreLua(bool client)
 
     });
 
-// ----------------------------------------------------------------------------
-// GCA - Seth - 10/22/2017 Experimental.......
-// ----------------------------------------------------------------------------
-// deleteNamedCache() - delete a named cache
-//                    - example: deleteNamedCache("yyy")
-// ----------------------------------------------------------------------------
   g_lua.writeFunction("deleteNamedCache", [](const boost::optional<std::string> cacheName) {
       setLuaSideEffect();
       std::string strCacheName ="";
@@ -976,13 +967,15 @@ void moreLua(bool client)
         strCacheName = *cacheName;
       }
       if(strCacheName.length() == 0) {
-          g_outputBuffer="Error deleting named cache, no name supplied.";
-	      errlog("Error deleteing named cache, no name supplied");
+          const char *strMsg = "Error deleting named cache, no name supplied.";
+          g_outputBuffer=strMsg;
+	      errlog(strMsg);
 	      return;
         }
       if(boost::starts_with(strCacheName, g_namedCacheTempPrefix)) {
-          g_outputBuffer="Error deleting new named cache, don't use named cache temp prefix.";
-	      errlog("Error deleting new named cache, don't use named cache temp prefix.");
+          const char *strMsg = "Error deleting new named cache, don't use named cache temp prefix.";
+          g_outputBuffer=strMsg;
+	      errlog(strMsg);
 	      return;
         }
       deleteNamedCacheEntry(g_namedCacheTable, strCacheName);
@@ -1004,13 +997,13 @@ void moreLua(bool client)
    * 	local nc = getNamedCache("foo")
    *
    *    optional debug settings:
-   *            -1 = make empty 'test' cache, allways return 'cache hit'
    *            bit flags:
    *             0 = no debugging (default)
    *             1 = display debugging on console
    *             2 = slow loading of cdb file for loadFromCDB and reloadNamedCache()
    *             4 = call linux trim function when closing named cache
    *             8 = detailed display of cdb data when loading for loadFromCDB
+   *            16 = make empty 'test' cache, allways return 'cache hit'
    */
     g_lua.writeFunction("getNamedCache", [client](const boost::optional<std::string> cacheName, const boost::optional<int> debug) {
       setLuaSideEffect();
@@ -1033,17 +1026,13 @@ void moreLua(bool client)
       int iDebug = 0;
       if(debug) {
         iDebug = *debug;
-        printf("DEBUG - DEBUG - DEBUG - getNamedCache() - debug set to: %d \n", iDebug);
+        warnlog("DEBUG - getNamedCache() - debug flag set to: %d - %s ", iDebug, NamedCache::getDebugText(iDebug).c_str());
       }
 
       std::shared_ptr<NamedCacheX> nc = createNamedCacheIfNotExists(g_namedCacheTable, name, iDebug);
       return nc;
     });
 
-// ----------------------------------------------------------------------------
-// getStats - return statistics in a table
-//          - example: tableStat2 = ncx:getStats()
-// ----------------------------------------------------------------------------
     g_lua.registerFunction<std::unordered_map<string, string>(std::shared_ptr<NamedCacheX>::*)()>("getStats", [](const std::shared_ptr<NamedCacheX>pool) {
         std::unordered_map<string, string> tableResult;
         if (pool->namedCache) {
@@ -1057,18 +1046,14 @@ void moreLua(bool client)
         return(tableResult);
     });
 
-// ----------------------------------------------------------------------------
-// showStats() - show statistics for named cache on terminal
-//             - example:  getNamedCache("xxx"):showStats()
-// ----------------------------------------------------------------------------
-
     g_lua.registerFunction<void(std::shared_ptr<NamedCacheX>::*)()>("showStats", [](const std::shared_ptr<NamedCacheX> pool) {
 
         if (pool->namedCache) {
           std::shared_ptr<DNSDistNamedCache> nc = pool->namedCache;
 	  if (!nc) {
-	    g_outputBuffer = "Cannot show statistics for a nil named cache";
-	    errlog("Cannot show statistics for a nil named cache");
+	    const char *strMsg = "Cannot show statistics for a nil named cache";
+	    g_outputBuffer = strMsg;
+	    errlog(strMsg);
 	    return;
 	  }
 	  g_outputBuffer = nc->getNamedCacheStatusText();
@@ -1078,11 +1063,6 @@ void moreLua(bool client)
 	}
       });
 
-// ----------------------------------------------------------------------------
-// resetCounters() - reset the counters for the named cache
-//                 - example:  getNamedCache("xxx"):resetCounters()
-// ----------------------------------------------------------------------------
-
     g_lua.registerFunction<void(std::shared_ptr<NamedCacheX>::*)()>("resetCounters", [](const std::shared_ptr<NamedCacheX> pool) {
         if (pool->namedCache) {
           std::shared_ptr<DNSDistNamedCache> nc = pool->namedCache;
@@ -1091,11 +1071,6 @@ void moreLua(bool client)
             }
           }
       });
-
-// ----------------------------------------------------------------------------
-// wasFileOpenedOK - return true if cdb file has been opened OK
-//            - example:  print(getNamedCache("xxx"):isFileOpen())
-// ----------------------------------------------------------------------------
 
     g_lua.registerFunction<bool(std::shared_ptr<NamedCacheX>::*)()>("wasFileOpenedOK", [](const std::shared_ptr<NamedCacheX>pool) {
         if (pool->namedCache) {
@@ -1107,11 +1082,6 @@ void moreLua(bool client)
         return false;
       });
 
-// ----------------------------------------------------------------------------
-// getErrNum - return error message number (errno, from last i/o operation)
-//           - example: print(getNamedCache("xxx"):getErrNum())
-// ----------------------------------------------------------------------------
-
     g_lua.registerFunction<int(std::shared_ptr<NamedCacheX>::*)()>("getErrNum", [](const std::shared_ptr<NamedCacheX>pool) {
         if (pool->namedCache) {
           std::shared_ptr<DNSDistNamedCache> nc = pool->namedCache;
@@ -1121,11 +1091,6 @@ void moreLua(bool client)
         }
         return 0;
       });
-
-// ----------------------------------------------------------------------------
-// getErrMsg - return error message text
-//           - example: print(getNamedCache("xxx"):getErrMsg())
-// ----------------------------------------------------------------------------
 
     g_lua.registerFunction<std::string(std::shared_ptr<NamedCacheX>::*)()>("getErrMsg", [](const std::shared_ptr<NamedCacheX>pool) {
         if (pool->namedCache) {
@@ -1149,7 +1114,7 @@ void moreLua(bool client)
         if (pool->namedCache) {
           std::shared_ptr<DNSDistNamedCache> nc = pool->namedCache;
           if (nc) {         
-            std::thread t(namedCacheLoadThread, pool, fileName, "MAP", "CDB", 1,  CACHE_DEBUG::DEBUG_SLOW_LOAD | CACHE_DEBUG::DEBUG_MALLOC_TRIM);
+            std::thread t(namedCacheLoadThread, pool, fileName, "MAP", "CDB", 1, CACHE_DEBUG::DEBUG_NONE);
 	        t.detach();
             return true;
 	  }
@@ -1189,8 +1154,7 @@ void moreLua(bool client)
         if (pool->namedCache) {
           std::shared_ptr<DNSDistNamedCache> nc = pool->namedCache;
           if (nc) {
-	    // Determine whether to cache only CDB hits in memory, or
-	    // CDB hits and misses.
+	    // Determine whether to cache only CDB hits in memory, or  CDB hits and misses.
 	    std::string cmode = "cdb";
 	    if (cacheMode) {
 	      cmode = *cacheMode;
@@ -1202,7 +1166,7 @@ void moreLua(bool client)
 	      csize = *maxEntries;
 	    }
 
-        std::thread t(namedCacheLoadThread, pool, fileName, "LRU", cmode, csize,  CACHE_DEBUG::DEBUG_MALLOC_TRIM);
+        std::thread t(namedCacheLoadThread, pool, fileName, "LRU", cmode, csize, CACHE_DEBUG::DEBUG_NONE);
 	    t.detach();
 	    return true;
 	  }
@@ -1420,10 +1384,10 @@ void moreLua(bool client)
       });
 
 // ----------------------------------------------------------------------------
-// Seth - GCA - Experimental - 10/22/2017
+// GCA - Protobuf generation and allowing next 'action' to occur  - 10/22/2017
 // ----------------------------------------------------------------------------
 
-    g_lua.writeFunction("RemoteLogActionX", [](std::shared_ptr<RemoteLogger> logger, boost::optional<std::function<int(DNSQuestion*, DNSDistProtoBufMessage*)> > alterFuncX) {
+    g_lua.writeFunction("RemoteLogActionX", [](std::shared_ptr<RemoteLogger> logger, boost::optional<std::function<std::tuple<int, string>(DNSQuestion*, DNSDistProtoBufMessage*)> > alterFuncX) {
 #ifdef HAVE_PROTOBUF
         return std::shared_ptr<DNSAction>(new RemoteLogActionX(logger, alterFuncX));
 #else
@@ -1432,7 +1396,7 @@ void moreLua(bool client)
       });
 
 // ----------------------------------------------------------------------------
-// Seth - GCA - Experimental - 10/22/2017 - Ari's code
+// GCA - Allow Protobuf generation 'on the fly' - 10/22/2017
 // ----------------------------------------------------------------------------
 
     g_lua.writeFunction("newDNSDistProtobufMessage", [](DNSQuestion *dq) {

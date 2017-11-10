@@ -3,6 +3,7 @@
 
 #ifdef HAVE_NAMEDCACHE
 
+// GCA - empty named cache place holder
 NoCache::NoCache() {
   iDebug = 0;
 }
@@ -46,7 +47,7 @@ bool NoCache::setCacheMode(int iMode)
 bool NoCache::init(int iEntries, int iCacheMode)
 {
   setCacheMode(iCacheMode);
-  (void) iEntries;        // not used
+  (void) iEntries;
   return(true);
 }
 
@@ -76,7 +77,6 @@ int iStatus = CACHE_HIT::HIT_NONE;
   return(iStatus);
 }
 
-// ----------------------------------------------------------------------------
 // ----------------------------------------------------------------------------
 CdbNoCache::CdbNoCache()
 {
@@ -123,14 +123,14 @@ std::string CdbNoCache::getErrMsg()
 
 bool CdbNoCache::setCacheMode(int iMode)
 {
-  (void) iMode;         // not used
+  (void) iMode;
   return(true);
 }
 
 bool CdbNoCache::init(int iEntries, int iCacheMode)
 {
   setCacheMode(iCacheMode);
-  (void) iEntries;        // not used
+  (void) iEntries;
   return(true);
 }
 
@@ -144,14 +144,12 @@ int CdbNoCache::getEntries()
   return(0);
 }
 
-// ----------------------------------------------------------------------------
-// getCDBCache() - read from cache / cdb - strValue cleared if not written to
-// ----------------------------------------------------------------------------
+//  read from cache / cdb - strValue cleared if not written to
 int CdbNoCache::getCache(const std::string strKey, std::string &strValue)
 {
 int iStatus = CACHE_HIT::HIT_NONE;
 
-  bool bGotCache = cdbFH.get(strKey, strValue);      // read from cache
+  bool bGotCache = cdbFH.get(strKey, strValue);
   if(bGotCache == false) {
     iStatus = CACHE_HIT::HIT_NONE;
   } else {

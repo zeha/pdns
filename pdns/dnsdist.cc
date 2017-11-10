@@ -95,12 +95,8 @@ GlobalStateHolder<pools_t> g_pools;
 size_t g_udpVectorSize{1};
 
 
-// ----------------------------------------------------------------------------
-// GCA - Seth - NamedCache 8/31/2017
-
+// GCA- NamedCache 8/31/2017
 #ifdef HAVE_NAMEDCACHE
-
-//GlobalStateHolder<namedCaches_t> g_namedCaches;
 
 namedCaches_t g_namedCacheTable;
 
@@ -110,7 +106,6 @@ std::string g_namedCacheTempPrefix = "-4rld";
 
 #endif
 
-// ----------------------------------------------------------------------------
 
 bool g_snmpEnabled{false};
 bool g_snmpTrapsEnabled{false};
@@ -356,9 +351,7 @@ bool fixUpResponse(char** response, uint16_t* responseLen, size_t* responseSize,
   return true;
 }
 
-// ----------------------------------------------------------------------------
-// Seth - GCA - copy qTag data into response object from question - 8/23/2017
-// ----------------------------------------------------------------------------
+// GCA - copy qTag data into response object from question - 8/23/2017
 int copyQTag(DNSResponse &dr, const std::shared_ptr<QTag> qTagData)
 {
   int iCount = 0;
@@ -378,7 +371,6 @@ int copyQTag(DNSResponse &dr, const std::shared_ptr<QTag> qTagData)
   return(iCount);
 }
 
-// ----------------------------------------------------------------------------
 
 
 #ifdef HAVE_DNSCRYPT
@@ -1326,16 +1318,13 @@ static void processUDPQuery(ClientState& cs, LocalHolders& holders, const struct
       if (packetCache->get(dq, consumed, dh->id, query, &cachedResponseSize, &cacheKey, allowExpired)) {
         DNSResponse dr(dq.qname, dq.qtype, dq.qclass, dq.local, dq.remote, reinterpret_cast<dnsheader*>(query), dq.size, cachedResponseSize, false, &realTime);
 
-// ----------------------------------------------------------------------------
-// Seth - GCA - copy qTag data into response object from question - 8/23/2017
+// GCA - copy qTag data into response object from question - 8/23/2017
 //              allows normal cache hit to pass qTag data
 //              however still problems with normal non cache as the
 //              response object is created differently up above on line 430
 //              it does not have access to the question object directly.
-// ----------------------------------------------------------------------------
 
           copyQTag(dr, dq.qTag);
-// ----------------------------------------------------------------------------
 
 #ifdef HAVE_PROTOBUF
         dr.uniqueId = dq.uniqueId;
