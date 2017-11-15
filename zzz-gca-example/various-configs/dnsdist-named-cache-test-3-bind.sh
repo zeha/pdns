@@ -1,8 +1,8 @@
-echo "dnsdist2-named-cache-test-3.sh - test dnsdist with named cache version test 3 spoof - Ari's version"
+echo "dnsdist2-named-cache-test-3-bind.sh - test dnsdist with named cache version test 3 - Ari's version"
 echo ""
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 SLASH="/"
-CFG_FILE="dnsdist-named-cache-test-3-spoof.conf"
+CFG_FILE="dnsdist-named-cache-test-3-bind.conf"
 CONFIG_FILE=$DIR$SLASH$CFG_FILE
 echo "current directory: " $DIR
 echo ""
