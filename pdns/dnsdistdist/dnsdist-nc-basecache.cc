@@ -1,22 +1,22 @@
 
-#include "dnsdist-nc-namedcache.hh"
+#include "dnsdist-nc-basecache.hh"
 
 #ifdef HAVE_NAMEDCACHE
 
 // GCA - virtual functions for named caches
 
-NamedCache::NamedCache()
+BaseNamedCache::BaseNamedCache()
 {
   iDebug = 0;
 }
 
-void NamedCache::setDebug(int debug)
+void BaseNamedCache::setDebug(int debug)
 {
   iDebug = debug;
 }
 
 
-std::string NamedCache::getDebugText(int debug)
+std::string BaseNamedCache::getDebugText(int debug)
 {
 string strMsg;
 
@@ -47,7 +47,7 @@ string strMsg;
   return(strMsg);
 }
 
-std::string NamedCache::getFoundText(int iStat)
+std::string BaseNamedCache::getFoundText(int iStat)
 {
 std::string strFound;
 
@@ -74,7 +74,7 @@ std::string strFound;
  return(strFound);
 }
 
-std::string NamedCache::getCacheModeText(int iMode)
+std::string BaseNamedCache::getCacheModeText(int iMode)
 {
 std::string strFound;
 
@@ -98,7 +98,7 @@ std::string strFound;
  return(strFound);
 }
 
-int NamedCache::parseCacheModeText(const std::string& strCacheMode)
+int BaseNamedCache::parseCacheModeText(const std::string& strCacheMode)
 {
 std::string strTemp;
 
@@ -119,7 +119,7 @@ std::string strTemp;
   return( CACHE_MODE::MODE_NONE);
 }
 
-std::string NamedCache::getCacheTypeText(int iType, bool bLoadBindMode)
+std::string BaseNamedCache::getCacheTypeText(int iType, bool bLoadBindMode)
 {
 std::string strFound;
 
@@ -149,7 +149,7 @@ std::string strFound;
     return(strFound);
 }
 
-int NamedCache::parseCacheTypeText(const std::string& strCacheType)
+int BaseNamedCache::parseCacheTypeText(const std::string& strCacheType)
 {
 std::string strTemp;
 

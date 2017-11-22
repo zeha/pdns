@@ -30,7 +30,7 @@
 
 struct DNSQuestion;
 
-// GCA - named cache - 8/2/2017
+// GCA - named cache
 #include "dnsdist-namedcache.hh"
 
 class DNSDistPacketCache : boost::noncopyable

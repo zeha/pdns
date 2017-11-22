@@ -90,7 +90,7 @@ vector<ClientState *> g_frontends;
 GlobalStateHolder<pools_t> g_pools;
 
 
-// GCA- NamedCache 8/31/2017
+// GCA- NamedCache
 #ifdef HAVE_NAMEDCACHE
 
 namedCaches_t g_namedCacheTable;
@@ -343,7 +343,7 @@ bool fixUpResponse(char** response, uint16_t* responseLen, size_t* responseSize,
   return true;
 }
 
-// GCA - copy qTag data into response object from question - 8/23/2017
+// GCA - copy qTag data into response object from question
 int copyQTag(DNSResponse &dr, const std::shared_ptr<QTag> qTagData)
 {
   int iCount = 0;
@@ -1249,11 +1249,8 @@ try
         if (packetCache->get(dq, consumed, dh->id, cachedResponse, &cachedResponseSize, &cacheKey, allowExpired)) {
           DNSResponse dr(dq.qname, dq.qtype, dq.qclass, dq.local, dq.remote, (dnsheader*) cachedResponse, sizeof cachedResponse, cachedResponseSize, false, &realTime);
 
-// GCA - copy qTag data into response object from question - 8/23/2017
+// GCA - copy qTag data into response object from question
 //              allows normal cache hit to pass qTag data
-//              however still problems with normal non cache as the
-//              response object is created differently up above on line 430
-//              it does not have access to the question object directly.
 
           copyQTag(dr, dq.qTag);
 

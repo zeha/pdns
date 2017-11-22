@@ -156,7 +156,7 @@ struct DNSResponse : DNSQuestion
   const struct timespec* queryTime;
 };
 
-// GCA - copy qTag data into response object from question - 8/23/2017
+// GCA - copy qTag data into response object from question
 extern int copyQTag(DNSResponse &dr, const std::shared_ptr<QTag> qTagData);
 
 

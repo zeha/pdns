@@ -14,15 +14,15 @@ enum CACHE_MODE {MODE_NONE, MODE_CDB, MODE_ALL, MODE_TEST};
 enum CACHE_TYPE {TYPE_NONE, TYPE_CDB, TYPE_MAP, TYPE_LRU};
 enum CACHE_DEBUG {DEBUG_NONE = 0x00, DEBUG_DISP = 0X01, DEBUG_SLOW_LOAD = 0x02, DEBUG_MALLOC_TRIM = 0x04, DEBUG_DISP_LOAD_DETAIL = 0X08, DEBUG_TEST_ALWAYS_HIT = 0X10};
 
-class NamedCache {
+class BaseNamedCache {
 
 private:
     int iDebug;
     int iMode;
 public:
 
-  NamedCache();
-  virtual ~NamedCache(){}
+  BaseNamedCache();
+  virtual ~BaseNamedCache(){}
   virtual void setDebug(int iDebug=0);
   virtual bool setCacheMode(int iMode)=0;
   virtual bool init(int iEntries, int iCacheMode)=0;
