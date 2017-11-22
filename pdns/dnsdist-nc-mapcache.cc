@@ -106,31 +106,33 @@ char buf[512];              // limiting length of data....
   return(0);
 }
 
-// loadCdbMap() - load entire cdb into map
-//
-// From: https://manpages.debian.org/jessie/tinycdb/cdb.5.en.html
-// CDB parts: toc (table of contents), data and index (hash tables).
-//
-// Toc has fixed length of 2048 bytes.
-// Toc contains 256 pointers to hash tables inside index sections.
-//
-// Every pointer consists of position of a hash table in bytes from the
-// beginning of a file, and a size of a hash table in entries, both are
-// 4-bytes (32 bits) unsigned integers in little-endian form.
-// Hash table length may have zero length, indicating hash table is empty.
-//
-// Right after toc section, data section follows without any alingment.
-// Toc consists of series of records, each is a key length,
-// value (data) length, key and value.
-// The key and value length are 4-byte unsigned integers.
-// Each record follows previous without any special alignment.
-//
-// Right after data section Index (hash tables) section follows.
-// Every hash table is a sequence of records each holds two numbers:
-// the key's hash value and record position inside data section.
-// Record position is bytes from the beginning of a file to first byte
-// of key length starting data record.
-//
+/*
+   loadCdbMap() - load entire cdb into map
+
+   From: https://manpages.debian.org/jessie/tinycdb/cdb.5.en.html
+   CDB parts: toc (table of contents), data and index (hash tables).
+
+   Toc has fixed length of 2048 bytes.
+   Toc contains 256 pointers to hash tables inside index sections.
+
+   Every pointer consists of position of a hash table in bytes from the
+   beginning of a file, and a size of a hash table in entries, both are
+   4-bytes (32 bits) unsigned integers in little-endian form.
+   Hash table length may have zero length, indicating hash table is empty.
+
+   Right after toc section, data section follows without any alingment.
+   Toc consists of series of records, each is a key length,
+   value (data) length, key and value.
+   The key and value length are 4-byte unsigned integers.
+   Each record follows previous without any special alignment.
+
+   Right after data section Index (hash tables) section follows.
+   Every hash table is a sequence of records each holds two numbers:
+   the key's hash value and record position inside data section.
+   Record position is bytes from the beginning of a file to first byte
+   of key length starting data record.
+*/
+
 int CdbMapCache::loadCdbMap(std::string strCdbName)
 {
 int iStatus = 0;

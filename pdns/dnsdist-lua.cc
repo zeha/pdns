@@ -1696,7 +1696,7 @@ vector<std::function<void(void)>> setupLua(bool client, const std::string& confi
       }
     });
 
-// GCA - 9/1/2017 - get tag array data
+// GCA - get tag array data
   g_lua.registerFunction<std::unordered_map<string, string>(DNSResponse::*)(void)>("getTagArrayResp", [](const DNSQuestion& dq) {
 
       if(dq.qTag != nullptr) {

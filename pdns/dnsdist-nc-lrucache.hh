@@ -10,7 +10,7 @@
 #include "config.h"
 
 #include "dnsdist-nc-cdbio.hh"
-#include "dnsdist-nc-namedcache.hh"
+#include "dnsdist-nc-basecache.hh"
 
 #ifdef HAVE_NAMEDCACHE
 
@@ -34,7 +34,7 @@ private:
   int iDebug;
 };
 
-class LRUCache : public NamedCache  {
+class LRUCache : public BaseNamedCache  {
 
 public:
 

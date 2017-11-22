@@ -727,137 +727,129 @@ void moreLua(bool client)
 #ifdef HAVE_NAMEDCACHE
 
 
+/*
+   GCA - new lua functions
 
-// ----------------------------------------------------------------------------
-// ----------------------------------------------------------------------------
+   NamedCacheX general methods:
+       newNamedCache([strCacheName]) - create a named cache if it doesn't exist
+                          - parameters:
+                                 strCacheName - cache name, defaults to "default"
+                          - example: addNamedCache("yyy")
+       showNamedCaches()  - display list of named caches on terminal
+                          - example: showNamedCaches()
 
-// ----------------------------------------------------------------------------
-// GCA - named cache - 10/4/2017
-//      see dnsdist config file pdns/zzz-gca-example/dnsdist-named-cache-B.conf for examples.
-// ----------------------------------------------------------------------------
-// new lua functions - 10/10/2017
-//
-// NamedCacheX general methods:
-//     newNamedCache([strCacheName]) - create a named cache if it doesn't exist
-//                        - parameters:
-//                               strCacheName - cache name, defaults to "default"
-//                        - example: addNamedCache("yyy")
-//     showNamedCaches()  - display list of named caches on terminal
-//                        - example: showNamedCaches()
-//
-//     closeNamedCache() - close a named cache, creates it if doesn't exist.
-//                          Used to free up resources used by a no longer needed cache
-//                          Unlike deleteNamedCache() this function will leave a
-//                          working empty named cache
-//                        - example: closeNamedCache("yyy")
-//     deleteNamedCache() - delete a named cache
-//                        - example: deleteNamedCache("yyy")
-//     reloadNamedCache([strCacheNameA], [maxEntries])
-//                        - parameters:
-//                          [strCacheName] - named cache to reload - else "default"
-//                          [maxEntries] - maxEntries if it is going to be changed, only works if "bindToCDB" type named cache.
-//                        - example:reloadNamedCache("xxx")
-// ----------------------------------------------------------------------------
-//
-// NamedCacheX methods:
-//      getNamedCache([strCacheName]) - get named cache ptr, create if not exist
-//                         - parameters:
-//                               strCacheName - cache name, defaults to "default"
-//                         - example:
-//                               ncx = getNamedCache("xxx")
-//      getStats()         - get statistics in a table
-//                         - example:
-//                               tableStat2 = ncx:getStats()
-//                               getNamedCache("xxx"):getStats()
-//      showStats()        - directly print out statistics to terminal
-//                         - example:
-//                               getNamedCache("xxx"):showStats()
-//      resetCounters()    - reset statistic counters for the named cache
-//                         - example:
-//                               getNamedCache("xxx"):resetCounters()
-//      wasFileOpenedOK()  - return true if cdb file was opened OK
-//                         - example:
-//                               print(getNamedCache("xxx"):isFileOpen())
-//      loadFromCDB()      - (re)initialize a new cache entirely into memory
-//                         - parameters:
-//                               strCacheName - cdb file path name to use
-//                         - examples:
-//                               loadFromCDB("xxx.cdb")
-//      bindToCDB()        - (re)initialize a new lru cache using a cdb file
-//                         - parameters:
-//                               strCacheName - cdb file path name to use
-//                               maxEntries - number of max entries to store in memory  -- optional parameter
-//                                         The default is 100000
-//                               strMode - "none", "cdb", "all"  -- optional parameter
-//                                         none - store nothing in memory
-//                                         cdb  - store cdb hits in memory
-//                                         all  - store all requests (even missed) in memory
-//                                         The default is "cdb"
-//                         - examples:
-//                              loadFromCDB("xxx.cdb", 200000, "cdb")
-//                              loadFromCDB("xxx.cdb")  -- mode defaults to cdb, maxEntries to 100000
-//      lookup()          - use string with dns name & return lua readable table
-//                         - parameters:
-//                              strQuery -  string to lookup without extra period at end of query string
-//                         - example:
-//                              iResult = getNamedCache("xxx"):lookup("bad.example.com")
-//                         - return lua table with QTag fields:
-//                              fields:
-//                                  found - boolean indicating if data found or not
-//                                          true - found with data
-//                                          false - not found, OR found without data
-//                                  data - string from cdb table match
-//      lookupQ()          - use DNSQuestion & return results in lua readable table and the internal DNSQuestion QTag object.
-//                         - parameters:
-//                              DNSQuestion -  object passed to function setup by addLuaFunction() in dnsdist configuration file.
-//                         - example:
-//                              iResult = getNamedCache("xxx"):lookupQ(dq)
-//                         - return lua table with QTag fields:
-//                              DNSQuestion QTag fields:
-//                                  found - boolean indicating if data found or not
-//                                          true - found with data
-//                                          false - not found, OR found without data
-//                                  data - string from cdb table match
-//
-//      newDNSDistProtobufMessage() - Ari's function to create a protobuf message 'on the fly'
-//                                    used with remoteLog()
-//                         - parameters:
-//                               DNSQuestion
-//                         - example:
-//                               m = newDNSDistProtobufMessage(dq)
-//                         - return lua object
-//
-//      remoteLog()        - Ari's function to generate a protobuf message 'on the fly'
-//                           used with newDNSDistProtobufMessage()
-//                         - parameters:
-//                               rlBlkLst - object created with newRemoteLogger
-//                               m - object create with newDNSDistProtobufMessage
-//                         - example:
-//                               remoteLog(rlBlkLst, m)
-//
-//      RemoteLogActionX() - Seth's function to modify a protobuf message and allow other actions -  going with Ari's
-//                         - parameters:
-//                               rlBlkLst - object create with newRemoteLogger
-//                               luaCheckLogBLK - lua subroutine to be called
-//                         - example:
-//                               addAction(AllRule(), RemoteLogActionX(rlBlkLst, luaCheckLogBLX))
-//                         - notes:
-//                               function setup to be called has two parameters and must return one
-//                                  parameters:
-//                                      dq - DNSQuestion
-//                                      pbMsg - DNSDistProtoBufMessage
-//                                  return:
-//                                     DNSAction type like DNSAction.Nxdomain or DNSAction.None
-//                               example - luaCheckLogBLX(dq, pbMsg)
-//
-//  Debugging functions:
-//      getErrNum()        - return error message number (errno, from last i/o operation)
-//                         - example:
-//                               print(getNamedCache("xxx"):getErrNum())
-//      getErrMsg()        - return error message text
-//                         - example:
-//                               print(getNamedCache("xxx"):getErrMsg())
-// ----------------------------------------------------------------------------
+       closeNamedCache() - close a named cache, creates it if doesn't exist.
+                            Used to free up resources used by a no longer needed cache
+                            Unlike deleteNamedCache() this function will leave a
+                            working empty named cache
+                          - example: closeNamedCache("yyy")
+       deleteNamedCache() - delete a named cache
+                          - example: deleteNamedCache("yyy")
+       reloadNamedCache([strCacheNameA], [maxEntries])
+                          - parameters:
+                            [strCacheName] - named cache to reload - else "default"
+                            [maxEntries] - maxEntries if it is going to be changed, only works if "bindToCDB" type named cache.
+                          - example:reloadNamedCache("xxx")
+
+   NamedCacheX methods:
+        getNamedCache([strCacheName]) - get named cache ptr, create if not exist
+                           - parameters:
+                                 strCacheName - cache name, defaults to "default"
+                           - example:
+                                 ncx = getNamedCache("xxx")
+        getStats()         - get statistics in a table
+                           - example:
+                                 tableStat2 = ncx:getStats()
+                                 getNamedCache("xxx"):getStats()
+        showStats()        - directly print out statistics to terminal
+                           - example:
+                                 getNamedCache("xxx"):showStats()
+        resetCounters()    - reset statistic counters for the named cache
+                           - example:
+                                 getNamedCache("xxx"):resetCounters()
+        wasFileOpenedOK()  - return true if cdb file was opened OK
+                           - example:
+                                 print(getNamedCache("xxx"):isFileOpen())
+        loadFromCDB()      - (re)initialize a new cache entirely into memory
+                           - parameters:
+                                 strCacheName - cdb file path name to use
+                           - examples:
+                                 loadFromCDB("xxx.cdb")
+        bindToCDB()        - (re)initialize a new lru cache using a cdb file
+                           - parameters:
+                                 strCacheName - cdb file path name to use
+                                 maxEntries - number of max entries to store in memory  -- optional parameter
+                                           The default is 100000
+                                 strMode - "none", "cdb", "all"  -- optional parameter
+                                           none - store nothing in memory
+                                           cdb  - store cdb hits in memory
+                                           all  - store all requests (even missed) in memory
+                                           The default is "cdb"
+                           - examples:
+                                loadFromCDB("xxx.cdb", 200000, "cdb")
+                                loadFromCDB("xxx.cdb")  -- mode defaults to cdb, maxEntries to 100000
+        lookup()          - use string with dns name & return lua readable table
+                           - parameters:
+                                strQuery -  string to lookup without extra period at end of query string
+                           - example:
+                                iResult = getNamedCache("xxx"):lookup("bad.example.com")
+                           - return lua table with QTag fields:
+                                fields:
+                                    found - boolean indicating if data found or not
+                                            true - found with data
+                                            false - not found, OR found without data
+                                    data - string from cdb table match
+        lookupQ()          - use DNSQuestion & return results in lua readable table and the internal DNSQuestion QTag object.
+                           - parameters:
+                                DNSQuestion -  object passed to function setup by addLuaFunction() in dnsdist configuration file.
+                           - example:
+                                iResult = getNamedCache("xxx"):lookupQ(dq)
+                           - return lua table with QTag fields:
+                                DNSQuestion QTag fields:
+                                    found - boolean indicating if data found or not
+                                            true - found with data
+                                            false - not found, OR found without data
+                                    data - string from cdb table match
+
+        newDNSDistProtobufMessage() - Ari's function to create a protobuf message 'on the fly'
+                                      used with remoteLog()
+                           - parameters:
+                                 DNSQuestion
+                           - example:
+                                 m = newDNSDistProtobufMessage(dq)
+                           - return lua object
+
+        remoteLog()        - Ari's function to generate a protobuf message 'on the fly'
+                             used with newDNSDistProtobufMessage()
+                           - parameters:
+                                 rlBlkLst - object created with newRemoteLogger
+                                 m - object create with newDNSDistProtobufMessage
+                           - example:
+                                 remoteLog(rlBlkLst, m)
+
+        RemoteLogActionX() - Seth's function to modify a protobuf message and allow other actions -  going with Ari's
+                           - parameters:
+                                 rlBlkLst - object create with newRemoteLogger
+                                 luaCheckLogBLK - lua subroutine to be called
+                           - example:
+                                 addAction(AllRule(), RemoteLogActionX(rlBlkLst, luaCheckLogBLX))
+                           - notes:
+                                 function setup to be called has two parameters and must return one
+                                    parameters:
+                                        dq - DNSQuestion
+                                        pbMsg - DNSDistProtoBufMessage
+                                    return:
+                                       DNSAction type like DNSAction.Nxdomain or DNSAction.None
+                                 example - luaCheckLogBLX(dq, pbMsg)
+
+    Debugging functions:
+        getErrNum()        - return error message number (errno, from last i/o operation)
+                           - example:
+                                 print(getNamedCache("xxx"):getErrNum())
+        getErrMsg()        - return error message text
+                           - example:
+                                 print(getNamedCache("xxx"):getErrMsg())
+*/
 
 
     g_lua.writeFunction("showNamedCaches", []() {
@@ -907,7 +899,7 @@ void moreLua(bool client)
       int iDebug = 0;
       if(debug) {
         iDebug = *debug;
-        warnlog("DEBUG - newNamedCache() - debug flag set to: %d - %s ", iDebug, NamedCache::getDebugText(iDebug).c_str());
+        warnlog("DEBUG - newNamedCache() - debug flag set to: %d - %s ", iDebug, BaseNamedCache::getDebugText(iDebug).c_str());
       }
 
       createNamedCacheIfNotExists(g_namedCacheTable, strCacheName, iDebug);
@@ -932,8 +924,9 @@ void moreLua(bool client)
 	      return;
         }
 
-      std::shared_ptr<NamedCacheX> selectedEntry = createNamedCacheIfNotExists(g_namedCacheTable, strCacheName);
-      selectedEntry->namedCache->close();       // remove resources from the 'temp' named cache
+      std::shared_ptr<DNSDistNamedCache> selectedEntry = createNamedCacheIfNotExists(g_namedCacheTable, strCacheName);
+      selectedEntry->close();                   // remove resources from the 'temp' named cache
+
     });
 
   g_lua.writeFunction("reloadNamedCache", [](const boost::optional<std::string> cacheName, boost::optional<int> maxEntries) {
@@ -982,9 +975,7 @@ void moreLua(bool client)
     });
 
 
-// ----------------------------------------------------------------------------
 // NamedCacheX general methods
-// ----------------------------------------------------------------------------
 
   /* getNamedCache(cacheName)
    *
@@ -1019,37 +1010,34 @@ void moreLua(bool client)
         throw std::runtime_error("Error getting named cache, don't use named cache temp prefix.");
       }
 
-      if (client) {
-        return std::make_shared<NamedCacheX>();
-      }
-
       int iDebug = 0;
       if(debug) {
         iDebug = *debug;
-        warnlog("DEBUG - getNamedCache() - debug flag set to: %d - %s ", iDebug, NamedCache::getDebugText(iDebug).c_str());
+        warnlog("DEBUG - getNamedCache() - name: %s   debug flag set to: %d - %s ",name.c_str(), iDebug, BaseNamedCache::getDebugText(iDebug).c_str());
       }
+      std::shared_ptr<DNSDistNamedCache> nc = createNamedCacheIfNotExists(g_namedCacheTable, name, iDebug);
 
-      std::shared_ptr<NamedCacheX> nc = createNamedCacheIfNotExists(g_namedCacheTable, name, iDebug);
       return nc;
     });
 
-    g_lua.registerFunction<std::unordered_map<string, string>(std::shared_ptr<NamedCacheX>::*)()>("getStats", [](const std::shared_ptr<NamedCacheX>pool) {
+    g_lua.registerFunction<std::unordered_map<string, string>(std::shared_ptr<DNSDistNamedCache>::*)()>("getStats", [](const std::shared_ptr<DNSDistNamedCache>pool) {
         std::unordered_map<string, string> tableResult;
-        if (pool->namedCache) {
-          std::shared_ptr<DNSDistNamedCache> nc = pool->namedCache;
+        if (pool) {
+          std::shared_ptr<DNSDistNamedCache> nc = pool;
           if (nc) {
             nc->getNamedCacheStatusTable(tableResult);
+#ifdef TRASH
             tableResult.insert({"objCount", std::to_string(nc.use_count())});
-
+#endif
           }
         }
         return(tableResult);
     });
 
-    g_lua.registerFunction<void(std::shared_ptr<NamedCacheX>::*)()>("showStats", [](const std::shared_ptr<NamedCacheX> pool) {
+    g_lua.registerFunction<void(std::shared_ptr<DNSDistNamedCache>::*)()>("showStats", [](const std::shared_ptr<DNSDistNamedCache> pool) {
 
-        if (pool->namedCache) {
-          std::shared_ptr<DNSDistNamedCache> nc = pool->namedCache;
+        if (pool) {
+          std::shared_ptr<DNSDistNamedCache> nc = pool;
 	  if (!nc) {
 	    const char *strMsg = "Cannot show statistics for a nil named cache";
 	    g_outputBuffer = strMsg;
@@ -1057,24 +1045,25 @@ void moreLua(bool client)
 	    return;
 	  }
 	  g_outputBuffer = nc->getNamedCacheStatusText();
+#ifdef TRASH
 	  g_outputBuffer += "Object count....: " + std::to_string(nc.use_count()) + "\n";
+#endif
         } else {
           throw std::runtime_error("Cannot show statistics for a nil named cache");
 	}
       });
 
-    g_lua.registerFunction<void(std::shared_ptr<NamedCacheX>::*)()>("resetCounters", [](const std::shared_ptr<NamedCacheX> pool) {
-        if (pool->namedCache) {
-          std::shared_ptr<DNSDistNamedCache> nc = pool->namedCache;
+    g_lua.registerFunction<void(std::shared_ptr<DNSDistNamedCache>::*)()>("resetCounters", [](const std::shared_ptr<DNSDistNamedCache> pool) {
+        if (pool) {
+          std::shared_ptr<DNSDistNamedCache> nc = pool;
           if (nc) {
             nc->resetCounters();
             }
           }
       });
-
-    g_lua.registerFunction<bool(std::shared_ptr<NamedCacheX>::*)()>("wasFileOpenedOK", [](const std::shared_ptr<NamedCacheX>pool) {
-        if (pool->namedCache) {
-          std::shared_ptr<DNSDistNamedCache> nc = pool->namedCache;
+    g_lua.registerFunction<bool(std::shared_ptr<DNSDistNamedCache>::*)()>("wasFileOpenedOK", [](const std::shared_ptr<DNSDistNamedCache>pool) {
+        if (pool) {
+          std::shared_ptr<DNSDistNamedCache> nc = pool;
           if (nc) {
             return(nc->isFileOpen());
           }
@@ -1082,9 +1071,10 @@ void moreLua(bool client)
         return false;
       });
 
-    g_lua.registerFunction<int(std::shared_ptr<NamedCacheX>::*)()>("getErrNum", [](const std::shared_ptr<NamedCacheX>pool) {
-        if (pool->namedCache) {
-          std::shared_ptr<DNSDistNamedCache> nc = pool->namedCache;
+
+    g_lua.registerFunction<int(std::shared_ptr<DNSDistNamedCache>::*)()>("getErrNum", [](const std::shared_ptr<DNSDistNamedCache>pool) {
+        if (pool) {
+          std::shared_ptr<DNSDistNamedCache> nc = pool;
           if (nc) {
             return(nc->getErrNum());
           }
@@ -1092,9 +1082,10 @@ void moreLua(bool client)
         return 0;
       });
 
-    g_lua.registerFunction<std::string(std::shared_ptr<NamedCacheX>::*)()>("getErrMsg", [](const std::shared_ptr<NamedCacheX>pool) {
-        if (pool->namedCache) {
-          std::shared_ptr<DNSDistNamedCache> nc = pool->namedCache;
+
+    g_lua.registerFunction<std::string(std::shared_ptr<DNSDistNamedCache>::*)()>("getErrMsg", [](const std::shared_ptr<DNSDistNamedCache>pool) {
+        if (pool) {
+          std::shared_ptr<DNSDistNamedCache> nc = pool;
           if (nc) {
             return nc->getErrMsg();
           }
@@ -1110,9 +1101,9 @@ void moreLua(bool client)
      * loadFromCDB will return a boolean value to indicate whether or not the
      * loading operation was successful.
      */
-    g_lua.registerFunction<bool(std::shared_ptr<NamedCacheX>::*)(const string&)>("loadFromCDB", [](const std::shared_ptr<NamedCacheX>pool, const string& fileName) {
-        if (pool->namedCache) {
-          std::shared_ptr<DNSDistNamedCache> nc = pool->namedCache;
+     g_lua.registerFunction<bool(std::shared_ptr<DNSDistNamedCache>::*)(const string&)>("loadFromCDB", [](const std::shared_ptr<DNSDistNamedCache>pool, const string& fileName) {
+        if (pool) {
+          std::shared_ptr<DNSDistNamedCache> nc = pool;
           if (nc) {         
             std::thread t(namedCacheLoadThread, pool, fileName, "MAP", "CDB", 1, CACHE_DEBUG::DEBUG_NONE);
 	        t.detach();
@@ -1149,10 +1140,11 @@ void moreLua(bool client)
      *
      *  	let ok = nc:bindToCDB("path/to/my.cdb", 1000000, "all")
      */
-    g_lua.registerFunction<bool(std::shared_ptr<NamedCacheX>::*)(const string&, const boost::optional<int>, const boost::optional<std::string>)>("bindToCDB", [](const std::shared_ptr<NamedCacheX>pool,
+
+    g_lua.registerFunction<bool(std::shared_ptr<DNSDistNamedCache>::*)(const string&, const boost::optional<int>, const boost::optional<std::string>)>("bindToCDB", [](const std::shared_ptr<DNSDistNamedCache>pool,
                     const string& fileName, const boost::optional<int> maxEntries, const boost::optional<std::string> cacheMode) {
-        if (pool->namedCache) {
-          std::shared_ptr<DNSDistNamedCache> nc = pool->namedCache;
+        if (pool) {
+          std::shared_ptr<DNSDistNamedCache> nc = pool;
           if (nc) {
 	    // Determine whether to cache only CDB hits in memory, or  CDB hits and misses.
 	    std::string cmode = "cdb";
@@ -1185,7 +1177,7 @@ void moreLua(bool client)
      * 		"data"	Any associated data, as a string. This value may be
      * 			nil, or an empty string.
      */
-    g_lua.registerFunction<std::unordered_map<string, boost::variant<string, bool>>(std::shared_ptr<NamedCacheX>::*)(std::string)>("lookup", [](const std::shared_ptr<NamedCacheX> pool, const std::string& query) {
+    g_lua.registerFunction<std::unordered_map<string, boost::variant<string, bool>>(std::shared_ptr<DNSDistNamedCache>::*)(std::string)>("lookup", [](const std::shared_ptr<DNSDistNamedCache> pool, const std::string& query) {
     std::unordered_map<string, boost::variant<string, bool>> tableResult;
     
     // Normalize, and validate the query by making sure it isn't a zero-length
@@ -1198,8 +1190,8 @@ void moreLua(bool client)
       throw std::runtime_error("Cannot call lookup with a zero-length string");
     }
 
-    if (pool->namedCache) {
-      std::shared_ptr<DNSDistNamedCache> nc = pool->namedCache;
+    if (pool) {
+      std::shared_ptr<DNSDistNamedCache> nc = pool;
 
       std::string data;
       int hitType = nc->lookup(q, data);
@@ -1232,12 +1224,12 @@ void moreLua(bool client)
      * 		"data"
      * 			Any associated data, if nc_found == "yes".
      */
-    g_lua.registerFunction<std::unordered_map<string, boost::variant<string, bool> >(std::shared_ptr<NamedCacheX>::*)(DNSQuestion *dq)>("lookupQ", [](const std::shared_ptr<NamedCacheX> pool, DNSQuestion *dq) {
+    g_lua.registerFunction<std::unordered_map<string, boost::variant<string, bool> >(std::shared_ptr<DNSDistNamedCache>::*)(DNSQuestion *dq)>("lookupQ", [](const std::shared_ptr<DNSDistNamedCache> pool, DNSQuestion *dq) {
     std::unordered_map<string, boost::variant<string, bool>> tableResult;
-    if (! (pool->namedCache)) {
+    if (! (pool)) {
       return tableResult;
     }
-    std::shared_ptr<DNSDistNamedCache> nc = pool->namedCache;
+    std::shared_ptr<DNSDistNamedCache> nc = pool;
 
     // Normalize the query, by converting it to lower-case, and remove the
     // trailing period, if there is one.
@@ -1383,10 +1375,7 @@ void moreLua(bool client)
 #endif
       });
 
-// ----------------------------------------------------------------------------
-// GCA - Protobuf generation and allowing next 'action' to occur  - 10/22/2017
-// ----------------------------------------------------------------------------
-
+// GCA - Protobuf generation and allowing next 'action' to occur
     g_lua.writeFunction("RemoteLogActionX", [](std::shared_ptr<RemoteLogger> logger, boost::optional<std::function<std::tuple<int, string>(DNSQuestion*, DNSDistProtoBufMessage*)> > alterFuncX) {
 #ifdef HAVE_PROTOBUF
         return std::shared_ptr<DNSAction>(new RemoteLogActionX(logger, alterFuncX));
@@ -1395,10 +1384,7 @@ void moreLua(bool client)
 #endif
       });
 
-// ----------------------------------------------------------------------------
-// GCA - Allow Protobuf generation 'on the fly' - 10/22/2017
-// ----------------------------------------------------------------------------
-
+// GCA - Allow Protobuf generation 'on the fly'
     g_lua.writeFunction("newDNSDistProtobufMessage", [](DNSQuestion *dq) {
 #ifdef HAVE_PROTOBUF
             return std::shared_ptr<DNSDistProtoBufMessage>(new DNSDistProtoBufMessage(*dq));
@@ -1419,8 +1405,6 @@ void moreLua(bool client)
 #endif /* HAVE_PROTOBUF */
 
       });
-
-// ----------------------------------------------------------------------------
 
     g_lua.writeFunction("RemoteLogResponseAction", [](std::shared_ptr<RemoteLogger> logger, boost::optional<std::function<void(const DNSResponse&, DNSDistProtoBufMessage*)> > alterFunc, boost::optional<bool> includeCNAME) {
 #ifdef HAVE_PROTOBUF

@@ -29,7 +29,7 @@ test_bind(){
  
 
 test_load(){
-	CFG_FILE="dnsdist-named-cache-test-3-bind.conf"
+	CFG_FILE="dnsdist-named-cache-test-3-load.conf"
 	CONFIG_FILE=$DIR$SLASH$CFG_FILE
 	echo "current directory: " $DIR
 	echo ""
@@ -40,6 +40,19 @@ test_load(){
         pause
 }
  
+
+test_load_debug(){
+	CFG_FILE="dnsdist-named-cache-test-3-load-debug.conf"
+	CONFIG_FILE=$DIR$SLASH$CFG_FILE
+	echo "current directory: " $DIR
+	echo ""
+	echo "configuration file: " $CONFIG_FILE
+	echo ""
+
+	./dnsdist --config=$CONFIG_FILE
+        pause
+}
+
 test_bind_spoof(){
 	CFG_FILE="dnsdist-named-cache-test-3-spoof-bind.conf"
 	CONFIG_FILE=$DIR$SLASH$CFG_FILE
@@ -100,6 +113,30 @@ test_load_spoof_seth(){
         pause
 }
 
+test_original_complex(){
+	CFG_FILE="dnsdist-complex.conf"
+	CONFIG_FILE=$DIR$SLASH$CFG_FILE
+	echo "current directory: " $DIR
+	echo ""
+	echo "configuration file: " $CONFIG_FILE
+	echo ""
+
+	./dnsdist --config=$CONFIG_FILE
+        pause
+}
+
+test_original_simple(){
+	CFG_FILE="dnsdist-simple.conf"
+	CONFIG_FILE=$DIR$SLASH$CFG_FILE
+	echo "current directory: " $DIR
+	echo ""
+	echo "configuration file: " $CONFIG_FILE
+	echo ""
+
+	./dnsdist --config=$CONFIG_FILE
+        pause
+}
+
 # function to display menus
 show_menus() {
 	clear
@@ -113,6 +150,9 @@ show_menus() {
 	echo "5. loadFromCDB() with spoofing response and slow loading"
 	echo "6. loadFromCDB() with spoofing response and forced memory release to os"
 	echo "7. loadFromCDB() with spoofing response - Seth's protobuf method using RemoteLogActionX"
+	echo "8. non-named cache lua access of cdb"
+	echo "9. simple demo of lua config - no cdb, only reject entry is 1jw2mr4fmky.net, else forward to dns"
+	echo "a. loadFromCDB() - debug"
 	echo "0. Exit"
 }
 # read input from the keyboard and take a action
@@ -130,7 +170,10 @@ read_options(){
 		5) test_load_spoof_slow ;;
 		6) test_load_spoof_release ;;
 		7) test_load_spoof_seth ;;
+		8) test_original_complex ;;
+		9) test_original_simple ;;
 		0) exit 0;;
+		a) test_load_debug ;;
 		*) echo -e "${RED}Error...${STD}" && sleep 2
 	esac
 }

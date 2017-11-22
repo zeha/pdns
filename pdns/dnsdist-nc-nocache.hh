@@ -4,11 +4,11 @@
 #include "config.h"
 
 #include "dnsdist-nc-cdbio.hh"
-#include "dnsdist-nc-namedcache.hh"
+#include "dnsdist-nc-basecache.hh"
 
 #ifdef HAVE_NAMEDCACHE
 
-class NoCache : public NamedCache {
+class NoCache : public BaseNamedCache {
 
 public:
    NoCache();
@@ -30,7 +30,7 @@ private:
 
 };
 
-class CdbNoCache : public NamedCache {
+class CdbNoCache : public BaseNamedCache {
 
 public:
    CdbNoCache();
