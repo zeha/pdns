@@ -10,13 +10,15 @@
 
 #ifdef HAVE_NAMEDCACHE
 
-// GCA - least recently used cache for named caches
-// Note that even though lruCache is not thread safe,
-// it doesn't have to be as all calls are from LUA code.
-//
-// Comment from: https://dnsdist.org/advanced/tuning.html
-//      "Lua processing in dnsdist is serialized by an unique lock for all threads."
-// This should be ok as all calls to lruCache are thru lua with is single threaded for dnsdist
+/*
+   GCA - least recently used cache for named caches
+   Note that even though lruCache is not thread safe,
+   it doesn't have to be as all calls are from LUA code.
+
+   Comment from: https://dnsdist.org/advanced/tuning.html
+        "Lua processing in dnsdist is serialized by an unique lock for all threads."
+   This should be ok as all calls to lruCache are thru lua with is single threaded for dnsdist
+*/
 
 
 lruCache::lruCache(int maxEntries)
@@ -152,10 +154,8 @@ LRUCache::~LRUCache()
   }
 }
 
-// ----------------------------------------------------------------------------
 // openCDB()
 // see:  http://cr.yp.to/cdb/reading.html
-// ----------------------------------------------------------------------------
 bool LRUCache::open(std::string strCdbName)
 {
 bool bStatus = false;

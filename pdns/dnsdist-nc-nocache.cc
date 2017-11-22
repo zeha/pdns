@@ -77,7 +77,8 @@ int iStatus = CACHE_HIT::HIT_NONE;
   return(iStatus);
 }
 
-// ----------------------------------------------------------------------------
+
+
 CdbNoCache::CdbNoCache()
 {
   iDebug = 0;

@@ -1280,7 +1280,7 @@ private:
 };
 
 
-// GCA - 10/23/2017 - allow protobuf generation & execute next action, alternate method
+// GCA - allow protobuf generation & execute next action, alternate method
 class RemoteLogActionX : public DNSAction, public boost::noncopyable
 {
 public:

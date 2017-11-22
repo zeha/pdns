@@ -95,7 +95,7 @@ GlobalStateHolder<pools_t> g_pools;
 size_t g_udpVectorSize{1};
 
 
-// GCA- NamedCache 8/31/2017
+// GCA- NamedCache
 #ifdef HAVE_NAMEDCACHE
 
 namedCaches_t g_namedCacheTable;
@@ -351,7 +351,7 @@ bool fixUpResponse(char** response, uint16_t* responseLen, size_t* responseSize,
   return true;
 }
 
-// GCA - copy qTag data into response object from question - 8/23/2017
+// GCA - copy qTag data into response object from question
 int copyQTag(DNSResponse &dr, const std::shared_ptr<QTag> qTagData)
 {
   int iCount = 0;
@@ -1307,11 +1307,8 @@ static void processUDPQuery(ClientState& cs, LocalHolders& holders, const struct
       if (packetCache->get(dq, consumed, dh->id, query, &cachedResponseSize, &cacheKey, allowExpired)) {
         DNSResponse dr(dq.qname, dq.qtype, dq.qclass, dq.local, dq.remote, reinterpret_cast<dnsheader*>(query), dq.size, cachedResponseSize, false, &realTime);
 
-// GCA - copy qTag data into response object from question - 8/23/2017
+// GCA - copy qTag data into response object from question
 //              allows normal cache hit to pass qTag data
-//              however still problems with normal non cache as the
-//              response object is created differently up above on line 430
-//              it does not have access to the question object directly.
 
           copyQTag(dr, dq.qTag);
 

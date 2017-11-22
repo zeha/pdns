@@ -4,11 +4,11 @@
 #include <map>
 
 #include "config.h"
-#include "dnsdist-nc-namedcache.hh"
+#include "dnsdist-nc-basecache.hh"
 
 #ifdef HAVE_NAMEDCACHE
 
-class CdbMapCache : public NamedCache {
+class CdbMapCache : public BaseNamedCache {
 
 public:
    CdbMapCache();
