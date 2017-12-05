@@ -374,6 +374,7 @@ install_dnsdist() {
   run 'curl "http://keyserver.ubuntu.com:11371/pks/lookup?op=get&search=0x396160EF8126A2E2" | sudo apt-key add - '
   run "sudo apt-get -qq update"
   run "sudo apt-get -qq --no-install-recommends install \
+    libcdb-dev \
     snmpd \
     libsnmp-dev \
     libfstrm-dev"
@@ -461,7 +462,8 @@ build_dnsdist(){
   run "./configure \
     ${sanitizerflags} \
     --enable-unit-tests \
-    --with-libsodium \
+    --enable-namedcache \
+    --enable-libsodium \
     --enable-dnscrypt \
     --enable-dns-over-tls \
     --enable-dnstap \
