@@ -348,6 +348,7 @@ install_recursor() {
 install_dnsdist() {
   # test requirements / setup
   run "sudo apt-get -qq --no-install-recommends install \
+    libcdb-dev \
     snmpd \
     libsnmp-dev"
   run "sudo sed -i \"s/agentxperms 0700 0755 dnsdist/agentxperms 0700 0755 ${USER}/g\" regression-tests.dnsdist/snmpd.conf"
@@ -407,6 +408,7 @@ build_dnsdist(){
     --enable-unit-tests \
     --enable-libsodium \
     --enable-dnscrypt \
+    --enable-namedcache \
     --prefix=$HOME/dnsdist \
     --disable-silent-rules"
   run "make -k -j3"
