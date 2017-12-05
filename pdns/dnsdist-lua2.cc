@@ -1101,7 +1101,9 @@ void moreLua(bool client)
      * loadFromCDB will return a boolean value to indicate whether or not the
      * loading operation was successful.
      */
-     g_lua.registerFunction<bool(std::shared_ptr<DNSDistNamedCache>::*)(const string&)>("loadFromCDB", [](const std::shared_ptr<DNSDistNamedCache>pool, const string& fileName) {
+     g_lua.registerFunction<bool(std::shared_ptr<DNSDistNamedCache>::*)(const string&)>("loadFromCDB", [client](const std::shared_ptr<DNSDistNamedCache>pool, const string& fileName) {
+        if (client)
+          return false;
         if (pool) {
           std::shared_ptr<DNSDistNamedCache> nc = pool;
           if (nc) {         
@@ -1141,8 +1143,10 @@ void moreLua(bool client)
      *  	let ok = nc:bindToCDB("path/to/my.cdb", 1000000, "all")
      */
 
-    g_lua.registerFunction<bool(std::shared_ptr<DNSDistNamedCache>::*)(const string&, const boost::optional<int>, const boost::optional<std::string>)>("bindToCDB", [](const std::shared_ptr<DNSDistNamedCache>pool,
+    g_lua.registerFunction<bool(std::shared_ptr<DNSDistNamedCache>::*)(const string&, const boost::optional<int>, const boost::optional<std::string>)>("bindToCDB", [client](const std::shared_ptr<DNSDistNamedCache>pool,
                     const string& fileName, const boost::optional<int> maxEntries, const boost::optional<std::string> cacheMode) {
+        if (client)
+          return false;
         if (pool) {
           std::shared_ptr<DNSDistNamedCache> nc = pool;
           if (nc) {
