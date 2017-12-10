@@ -997,6 +997,54 @@ vector<std::function<void(void)>> setupLua(bool client, const std::string& confi
 
     });
 
+  g_lua.writeFunction("benchSet", [](boost::optional<int> times_, boost::optional<string> suffix_)  {
+      setLuaNoSideEffect();
+      int times = times_.get_value_or(100000);
+      DNSName suffix(suffix_.get_value_or("powerdns.com"));
+      struct item {
+        vector<uint8_t> packet;
+        ComboAddress rem;
+        DNSName qname;
+        uint16_t qtype, qclass;
+      };
+      vector<item> items;
+      items.reserve(1000);
+      for(int n=0; n < 1000; ++n) {
+        struct item i;
+        i.qname=DNSName(std::to_string(random()));
+        i.qname += suffix;
+        i.qtype = random() % 0xff;
+        i.qclass = 1;
+        i.rem=ComboAddress("127.0.0.1");
+        i.rem.sin4.sin_addr.s_addr = random();
+        DNSPacketWriter pw(i.packet, i.qname, i.qtype);
+        items.push_back(i);
+      }
+
+      LocalHolders holders;
+
+      int drops=0;
+      ComboAddress dummy("127.0.0.1");
+      DTime dt;
+      dt.set();
+
+      for(int n=0; n < times; ++n) {
+        const item& i = items[n % items.size()];
+        DNSQuestion dq(&i.qname, i.qtype, i.qclass, &i.rem, &i.rem, (struct dnsheader*)&i.packet[0], i.packet.size(), i.packet.size(), false);
+        std::string poolname;
+        int delayMsec;
+        struct timespec now;
+        gettime(&now);
+        if (!processQuery(holders, dq, poolname, &delayMsec, now)) {
+          drops++;
+        }
+      }
+      double udiff=dt.udiff();
+      g_outputBuffer=(boost::format("Had %d drops out of %d, %.1f qps, in %.1f usec\n") % drops % times % (1000000*(1.0*times/udiff)) % udiff).str();
+
+    });
+
+
   g_lua.writeFunction("AllRule", []() {
       return std::shared_ptr<DNSRule>(new AllRule());
     });
