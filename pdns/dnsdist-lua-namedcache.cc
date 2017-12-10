@@ -633,6 +633,68 @@ void setupLuaNamedCache(bool client)
    });
 
 
+  /* NamedCacheX::lookupQWild(DNSQuestion, minLabels)
+   * A depth lookup is done starting from minLabels labels. If QName has less than minLabels labels, the entire QName is looked up once.
+   *
+   * Example of lookups done with minLabels=2 and QName foo.bar.foo.example.com.:
+   *  example.com.
+   *  foo.example.com.
+   *  bar.foo.example.com.
+   *  foo.bar.foo.example.com.
+   */
+  g_lua.registerFunction<std::unordered_map<string, boost::variant<string, bool> >(std::shared_ptr<DNSDistNamedCache>::*)(DNSQuestion *dq, int minLabels)>("lookupQWild", [](const std::shared_ptr<DNSDistNamedCache> pool, DNSQuestion *dq, int minLabels) {
+    std::unordered_map<string, boost::variant<string, bool>> tableResult;
+    if (! (pool)) {
+      return tableResult;
+    }
+    std::shared_ptr<DNSDistNamedCache> nc = pool;
+
+    DNSName reverse = dq->qname->makeLowerCase().labelReverse();
+    int totalLabelCount = reverse.countLabels();
+    DNSName key;
+
+    bool found = false;
+    std::string strRet;
+    for (const auto& label : reverse.getRawLabels()) {
+      key.appendRawLabel(label);
+      if (totalLabelCount >= minLabels && key.countLabels() < minLabels) {
+        // skip actual lookup
+        continue;
+      }
+
+      // Normalize the query, by converting it to lower-case, and remove the
+      // trailing period, if there is one.
+      std::string strQuery = key.labelReverse().toString();
+      if(strQuery.back() == '.') {
+        strQuery.pop_back();
+      }
+      if (strQuery.length() == 0) {
+        throw std::runtime_error("The DNS question's QNAME is a zero-length string");
+      }
+
+      int hitType = nc->lookup(strQuery, strRet);
+      found = !(hitType == CACHE_HIT::HIT_NONE);
+      if (found) {
+        break;
+      }
+    }
+
+    tableResult.insert({"found", found});
+    tableResult.insert({"data", strRet});
+
+    // Make sure the DNSQuestion.QTag field is initialized, and add the
+    // qtags to the DNSQuestion.
+    if(dq->qTag == nullptr) {
+      dq->qTag = std::make_shared<QTag>();
+    }
+
+    dq->qTag->add("found", std::string(found ? "yes": "no"));
+    if (found) {
+      dq->qTag->add("data", strRet);
+    }
+    return tableResult;
+  });
+
 #endif // HAVE_NAMEDCACHE
 
 // GCA - get tag array data
