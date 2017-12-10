@@ -81,6 +81,7 @@ dnsdist_SOURCES = \
 	dnsdist-ecs.cc dnsdist-ecs.hh \
 	dnsdist-lua.hh dnsdist-lua.cc \
 	dnsdist-lua2.cc \
+	dnsdist-lmdb.cc \
 	dnsdist-protobuf.cc dnsdist-protobuf.hh \
 	dnsdist-rings.cc \
 	dnsdist-snmp.cc dnsdist-snmp.hh \

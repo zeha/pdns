@@ -36,6 +36,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include "dnsdist-lmdb.hh"
 
 #include "dnsdist-lua.hh"
 
@@ -1481,4 +1482,35 @@ void moreLua(bool client)
         g_outputBuffer="recvmmsg support is not available!\n";
 #endif
       });
+
+    g_lua.writeFunction("buildLMDBPolicyActionDB", [](string dbDirectory, string inputFilename) {
+      setLuaNoSideEffect();
+      try {
+        buildLMDBPolicyActionDB(dbDirectory, inputFilename);
+      }
+      catch(const std::exception& e) {
+        errlog(e.what());
+        g_outputBuffer=string(e.what()) + "\n";
+      }
+    });
+
+    g_lua.writeFunction("lookupLMDBPolicyAction", [](string dbDirectory, DNSName qname) {
+      setLuaNoSideEffect();
+      try {
+        return lookupLMDBPolicyAction(dbDirectory, qname);
+      }
+      catch(const std::exception& e) {
+        errlog(e.what());
+        g_outputBuffer=string(e.what()) + "\n";
+        return string();
+      }
+    });
+
+    g_lua.writeFunction("LMDBPolicyAction", [](string dbDirectory) {
+      return std::shared_ptr<DNSAction>(new LMDBPolicyAction(dbDirectory));
+    });
+
+    g_lua.writeFunction("quit", []() {
+      _exit(0);
+    });
 }
