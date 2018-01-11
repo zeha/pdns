@@ -419,6 +419,7 @@ build_dnsdist(){
 }
 
 test_auth() {
+  export NOSE_PROCESSES=8
   run "make -j3 check || (cat pdns/test-suite.log; false)"
   run "test -f pdns/test-suite.log && cat pdns/test-suite.log || true"
   run "test -f modules/remotebackend/test-suite.log && cat modules/remotebackend/test-suite.log || true"
@@ -540,6 +541,7 @@ test_recursor() {
   export PDNSRECURSOR="${PDNS_RECURSOR_DIR}/sbin/pdns_recursor"
   export DNSBULKTEST="/usr/bin/dnsbulktest"
   export RECCONTROL="${PDNS_RECURSOR_DIR}/bin/rec_control"
+  export NOSE_PROCESSES=8
   run "cd pdns/recursordist/pdns-recursor-*"
   run "make -j 3 check || (cat test-suite.log; false)"
   run "cd ${TRAVIS_BUILD_DIR}"
@@ -555,6 +557,7 @@ test_recursor() {
 }
 
 test_dnsdist(){
+  export NOSE_PROCESSES=8
   run "cd regression-tests.dnsdist"
   run "DNSDISTBIN=$HOME/dnsdist/bin/dnsdist ./runtests -v"
   run "rm -f ./DNSCryptResolver.cert ./DNSCryptResolver.key"
