@@ -347,10 +347,14 @@ install_recursor() {
 
 install_dnsdist() {
   # test requirements / setup
+  run "sudo add-apt-repository -y ppa:zeha/libfstrm-ppa"
+  run 'curl "http://keyserver.ubuntu.com:11371/pks/lookup?op=get&search=0x396160EF8126A2E2" | sudo apt-key add - '
+  run "sudo apt-get -qq update"
   run "sudo apt-get -qq --no-install-recommends install \
     libcdb-dev \
     snmpd \
-    libsnmp-dev"
+    libsnmp-dev \
+    libfstrm-dev"
   run "sudo sed -i \"s/agentxperms 0700 0755 dnsdist/agentxperms 0700 0755 ${USER}/g\" regression-tests.dnsdist/snmpd.conf"
   run "sudo cp -f regression-tests.dnsdist/snmpd.conf /etc/snmp/snmpd.conf"
   run "sudo service snmpd restart"
@@ -409,6 +413,7 @@ build_dnsdist(){
     --enable-libsodium \
     --enable-dnscrypt \
     --enable-dns-over-tls \
+    --enable-fstrm \
     --enable-namedcache \
     --prefix=$HOME/dnsdist \
     --disable-silent-rules"

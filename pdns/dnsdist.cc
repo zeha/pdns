@@ -1263,22 +1263,22 @@ static void processUDPQuery(ClientState& cs, LocalHolders& holders, const struct
       return;
     }
 
-    const uint16_t * flags = getFlagsFromDNSHeader(dh);
-    const uint16_t origFlags = *flags;
-    uint16_t qtype, qclass;
-    unsigned int consumed = 0;
-    DNSName qname(query, len, sizeof(dnsheader), false, &qtype, &qclass, &consumed);
-    DNSQuestion dq(&qname, qtype, qclass, dest.sin4.sin_family != 0 ? &dest : &cs.local, &remote, dh, queryBufferSize, len, false);
-
     string poolname;
     int delayMsec = 0;
     /* we need an accurate ("real") value for the response and
        to store into the IDS, but not for insertion into the
        rings for example */
-    struct timespec realTime;
+    struct timespec queryRealTime;
     struct timespec now;
     gettime(&now);
-    gettime(&realTime, true);
+    gettime(&queryRealTime, true);
+
+    const uint16_t * flags = getFlagsFromDNSHeader(dh);
+    const uint16_t origFlags = *flags;
+    uint16_t qtype, qclass;
+    unsigned int consumed = 0;
+    DNSName qname(query, len, sizeof(dnsheader), false, &qtype, &qclass, &consumed);
+    DNSQuestion dq(&qname, qtype, qclass, dest.sin4.sin_family != 0 ? &dest : &cs.local, &remote, dh, queryBufferSize, len, false, &queryRealTime);
 
     if (!processQuery(holders, dq, poolname, &delayMsec, now))
     {
@@ -1293,7 +1293,7 @@ static void processUDPQuery(ClientState& cs, LocalHolders& holders, const struct
         char* response = query;
         uint16_t responseLen = dq.len;
 
-        DNSResponse dr(dq.qname, dq.qtype, dq.qclass, dq.local, dq.remote, reinterpret_cast<dnsheader*>(response), dq.size, responseLen, false, &realTime);
+        DNSResponse dr(dq.qname, dq.qtype, dq.qclass, dq.local, dq.remote, reinterpret_cast<dnsheader*>(response), dq.size, responseLen, false, &queryRealTime);
 #ifdef HAVE_PROTOBUF
         dr.uniqueId = dq.uniqueId;
 #endif
@@ -1350,7 +1350,7 @@ static void processUDPQuery(ClientState& cs, LocalHolders& holders, const struct
       uint16_t cachedResponseSize = dq.size;
       uint32_t allowExpired = ss ? 0 : g_staleCacheEntriesTTL;
       if (packetCache->get(dq, consumed, dh->id, query, &cachedResponseSize, &cacheKey, allowExpired)) {
-        DNSResponse dr(dq.qname, dq.qtype, dq.qclass, dq.local, dq.remote, reinterpret_cast<dnsheader*>(query), dq.size, cachedResponseSize, false, &realTime);
+        DNSResponse dr(dq.qname, dq.qtype, dq.qclass, dq.local, dq.remote, reinterpret_cast<dnsheader*>(query), dq.size, cachedResponseSize, false, &queryRealTime);
 
 // GCA - copy qTag data into response object from question
 //              allows normal cache hit to pass qTag data
@@ -1403,7 +1403,7 @@ static void processUDPQuery(ClientState& cs, LocalHolders& holders, const struct
         dq.dh->rcode = RCode::ServFail;
         dq.dh->qr = true;
 
-        DNSResponse dr(dq.qname, dq.qtype, dq.qclass, dq.local, dq.remote, reinterpret_cast<dnsheader*>(response), dq.size, responseLen, false, &realTime);
+        DNSResponse dr(dq.qname, dq.qtype, dq.qclass, dq.local, dq.remote, reinterpret_cast<dnsheader*>(response), dq.size, responseLen, false, &queryRealTime);
 #ifdef HAVE_PROTOBUF
         dr.uniqueId = dq.uniqueId;
 #endif
@@ -1454,7 +1454,7 @@ static void processUDPQuery(ClientState& cs, LocalHolders& holders, const struct
     ids->origFD = cs.udpFD;
     ids->origID = dh->id;
     ids->origRemote = remote;
-    ids->sentTime.set(realTime);
+    ids->sentTime.set(queryRealTime);
     ids->qname = qname;
     ids->qtype = dq.qtype;
     ids->qclass = dq.qclass;
@@ -2185,6 +2185,9 @@ try
 #endif
 #ifdef HAVE_LIBSODIUM
       cout<<"libsodium ";
+#endif
+#ifdef HAVE_FSTRM
+      cout<<"fstrm ";
 #endif
 #ifdef HAVE_PROTOBUF
       cout<<"protobuf ";
