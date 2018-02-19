@@ -115,7 +115,7 @@ private:
   std::atomic<double>   deltaLookup[DELTA_AVG];
   int deltaCount;
   time_t tCounterReset;
-  class StopWatch *sw;
+  struct StopWatch *sw;
 
 };
 
