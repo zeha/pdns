@@ -650,9 +650,9 @@ void setupLuaNamedCache(bool client)
       dq->qTag = std::make_shared<QTag>();
     }
 
-    dq->qTag->add("found", std::string(found ? "yes": "no"));
+    dq->qTag->insert({"found", std::string(found ? "yes": "no")});
     if (found) {
-      dq->qTag->add("data", strRet);
+      dq->qTag->insert({"data", strRet});
     }
     return tableResult;
    });
@@ -713,25 +713,14 @@ void setupLuaNamedCache(bool client)
       dq->qTag = std::make_shared<QTag>();
     }
 
-    dq->qTag->add("found", std::string(found ? "yes": "no"));
+    dq->qTag->insert({"found", std::string(found ? "yes": "no")});
     if (found) {
-      dq->qTag->add("data", strRet);
+      dq->qTag->insert({"data", strRet});
     }
     return tableResult;
   });
 
 #endif // HAVE_NAMEDCACHE
-
-// GCA - get tag array data
-  g_lua.registerFunction<std::unordered_map<string, string>(DNSResponse::*)(void)>("getTagArrayResp", [](const DNSQuestion& dq) {
-
-      if(dq.qTag != nullptr) {
-        return dq.qTag->tagData;
-      } else {
-        std::unordered_map<string, string> XX;
-        return XX;
-      }
-    });
 
 // GCA - Protobuf generation and allowing next 'action' to occur
     g_lua.writeFunction("RemoteLogActionX", [](std::shared_ptr<RemoteLogger> logger, boost::optional<std::function<std::tuple<int, string>(DNSQuestion*, DNSDistProtoBufMessage*)> > alterFuncX) {
