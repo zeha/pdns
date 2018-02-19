@@ -40,7 +40,7 @@ class RemoteLogActionX : public DNSAction, public boost::noncopyable
 {
 public:
 
-  RemoteLogActionX(std::shared_ptr<RemoteLogger> logger, boost::optional<std::function<std::tuple<int, string>(DNSQuestion*, DNSDistProtoBufMessage*)> > alterFuncX): d_logger(logger), d_alterFuncX(alterFuncX)
+  RemoteLogActionX(std::shared_ptr<RemoteLoggerInterface> logger, boost::optional<std::function<std::tuple<int, string>(DNSQuestion*, DNSDistProtoBufMessage*)> > alterFuncX): d_logger(logger), d_alterFuncX(alterFuncX)
   {
   }
   DNSAction::Action operator()(DNSQuestion* dq, string* ruleresult) const override
@@ -85,7 +85,7 @@ public:
     return "remote logX to " + d_logger->toString();
   }
 private:
-  std::shared_ptr<RemoteLogger> d_logger;
+  std::shared_ptr<RemoteLoggerInterface> d_logger;
   boost::optional<std::function<std::tuple<int, string>(DNSQuestion*, DNSDistProtoBufMessage*)> > d_alterFuncX;       // returns int/string now!
 
 };
@@ -723,7 +723,13 @@ void setupLuaNamedCache(bool client)
 #endif // HAVE_NAMEDCACHE
 
 // GCA - Protobuf generation and allowing next 'action' to occur
-    g_lua.writeFunction("RemoteLogActionX", [](std::shared_ptr<RemoteLogger> logger, boost::optional<std::function<std::tuple<int, string>(DNSQuestion*, DNSDistProtoBufMessage*)> > alterFuncX) {
+    g_lua.writeFunction("RemoteLogActionX", [](std::shared_ptr<RemoteLoggerInterface> logger, boost::optional<std::function<std::tuple<int, string>(DNSQuestion*, DNSDistProtoBufMessage*)> > alterFuncX) {
+      // avoids potentially-evaluated-expression warning with clang.
+      RemoteLoggerInterface& rl = *logger.get();
+      if (typeid(rl) != typeid(RemoteLogger)) {
+        // We could let the user do what he wants, but wrapping PowerDNS Protobuf inside a FrameStream tagged as dnstap is logically wrong.
+        throw std::runtime_error("RemoteLogActionX only takes RemoteLogger.");
+      }
 #ifdef HAVE_PROTOBUF
         return std::shared_ptr<DNSAction>(new RemoteLogActionX(logger, alterFuncX));
 #else
@@ -740,7 +746,13 @@ void setupLuaNamedCache(bool client)
 #endif /* HAVE_PROTOBUF */
       });
 
-    g_lua.writeFunction("remoteLog", [](std::shared_ptr<RemoteLogger> logger, std::shared_ptr<DNSDistProtoBufMessage> message) {
+    g_lua.writeFunction("remoteLog", [](std::shared_ptr<RemoteLoggerInterface> logger, std::shared_ptr<DNSDistProtoBufMessage> message) {
+      // avoids potentially-evaluated-expression warning with clang.
+      RemoteLoggerInterface& rl = *logger.get();
+      if (typeid(rl) != typeid(RemoteLogger)) {
+        // We could let the user do what he wants, but wrapping PowerDNS Protobuf inside a FrameStream tagged as dnstap is logically wrong.
+        throw std::runtime_error("remoteLog only takes RemoteLogger.");
+      }
             setLuaNoSideEffect();
 
 #ifdef HAVE_PROTOBUF
