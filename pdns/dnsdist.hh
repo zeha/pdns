@@ -90,10 +90,6 @@ struct DNSResponse : DNSQuestion
     DNSQuestion(name, type, class_, lc, rem, header, bufferSize, responseLen, isTcp, queryTime_) { }
 };
 
-// GCA - copy qTag data into response object from question
-extern int copyQTag(DNSResponse &dr, const std::shared_ptr<QTag> qTagData);
-
-
 /* so what could you do: 
    drop, 
    fake up nxdomain, 
