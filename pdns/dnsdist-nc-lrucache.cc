@@ -1,5 +1,6 @@
-
+#ifndef __APPLE__
 #include <malloc.h>
+#endif
 
 #include "config.h"
 
@@ -44,11 +45,12 @@ void lruCache::clearLRU()
   if(iDebug & CACHE_DEBUG::DEBUG_DISP) {
     warnlog("lruCache::clearLRU() - DEBUG - DEBUG - cleared map & list ......................... \n");
   }
+#ifndef __APPLE__
   if(iDebug & CACHE_DEBUG::DEBUG_MALLOC_TRIM) {
     int iStat = malloc_trim(0);
     warnlog("bindToCDB - Releasing memory to os: %s ", iStat?"Memory Released":"NOT POSSIBLE TO RELEASE MEMORY");
   }
-
+#endif
 }
 
 void lruCache::put(const std::string& key, const std::string& value)
