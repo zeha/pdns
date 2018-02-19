@@ -1,6 +1,6 @@
-
+#ifndef __APPLE__
 #include <malloc.h>
-
+#endif
 
 #include "config.h"
 
@@ -37,10 +37,12 @@ bool CdbMapCache::close()
   if(iDebug & CACHE_DEBUG::DEBUG_DISP) {
     warnlog("DEBUG - CdbMapCache::close() - cleared mapKeyData ");
   }
+#ifndef __APPLE__
   if(iDebug & CACHE_DEBUG::DEBUG_MALLOC_TRIM) {
     int iStat = malloc_trim(0);
     warnlog("DEBUG - loadFromCDB() - Releasing memory to os: %s ", iStat?"Memory Released":"NOT POSSIBLE TO RELEASE MEMORY");
   }
+#endif
   return(true);
 }
 
