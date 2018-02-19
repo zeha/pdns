@@ -24,6 +24,8 @@ from ctypes.util import find_library
 
 if sys.platform == 'win32':
     cdblib = cdll.LoadLibrary("libcdb.dll")
+elif sys.platform == 'darwin':
+    cdblib = cdll.LoadLibrary("libcdb.dylib")
 else:
     cdblib = cdll.LoadLibrary("libcdb.so")
 
@@ -235,6 +237,9 @@ class TestNamedCache(DNSDistTest):
     _protobufCounter = 0
     _config_params = ['_testServerPort', '_protobufServerPort']
     _config_template = """					-- start of the lua code for dnsdist conf file
+    newServer{address="127.0.0.1:%s", useClientSubnet=true}
+    rl = newRemoteLogger('127.0.0.1:%s')                      -- protobuf server
+
     luasmn = newSuffixMatchNode()
     luasmn:add(newDNSName('lua.protobuf.tests.powerdns.com.'))
 
@@ -404,7 +409,8 @@ class TestNamedCache(DNSDistTest):
      
          m:setProtobufResponseType()
          m:addResponseRR(strReqName, 1, 1, 456, blobData)
-    
+         m:setResponseCode(dnsdist.NXDOMAIN)
+
          requestor = newCA(dq.remoteaddr:toString())		
          if requestor:isIPv4() then
           requestor:truncate(24)
@@ -422,11 +428,6 @@ class TestNamedCache(DNSDistTest):
          m:setTag("Query,123")
          m:setTag("found,yes")                                  -- tag as yes response in protobuf
  
-         m:setResponseCode(dnsdist.NXDOMAIN)
-         m:setProtobufResponseType()
-
-         m:addResponseRR(strReqName, 1, 1, 456, blobData)
-
          remoteLog(rl, m)                                       -- send out protobuf
 
          return DNSAction.Spoof, "1.2.3.4"			-- spoof test, only 1 protobuf msg, no dns query
@@ -434,13 +435,6 @@ class TestNamedCache(DNSDistTest):
       end
       return DNSAction.None, ""			                -- allow rule processing to continue
     end
-
-
-                                                              -- setup rules and protobuf server address
-
-    newServer{address="127.0.0.1:%s", useClientSubnet=true}
-
-    rl = newRemoteLogger('127.0.0.1:%s')                      -- protobuf server 
 
 
     xxx = getNamedCache("xxx")        -- load test cdb into 'loadFrom' named cache 
@@ -689,9 +683,7 @@ class TestNamedCache(DNSDistTest):
             self.assertEquals(socket.inet_ntop(socket.AF_INET, rr.rdata), '127.0.0.1')
 
 
-
-
-    def testCreateCDBxxxxx(self):                                               # delete the test cdb file when finished
+    @classmethod
+    def tearDownClass(cls):                                               # delete the test cdb file when finished
+        super(TestNamedCache, cls).tearDownClass()
         delete_cdb()
-
-
