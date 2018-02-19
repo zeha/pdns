@@ -370,28 +370,6 @@ bool fixUpResponse(char** response, uint16_t* responseLen, size_t* responseSize,
   return true;
 }
 
-// GCA - copy qTag data into response object from question
-int copyQTag(DNSResponse &dr, const std::shared_ptr<QTag> qTagData)
-{
-  int iCount = 0;
-
-  if(qTagData != nullptr) {
-    if(dr.qTag == nullptr) {
-      dr.qTag = std::make_shared<QTag>();
-      }
-
-    if(dr.qTag != nullptr) {
-      for (const auto& itr : qTagData->tagData) {
-        dr.qTag->add(itr.first, itr.second);
-        iCount++;
-        }
-    }
-  }
-  return(iCount);
-}
-
-
-
 #ifdef HAVE_DNSCRYPT
 bool encryptResponse(char* response, uint16_t* responseLen, size_t responseSize, bool tcp, std::shared_ptr<DNSCryptQuery> dnsCryptQuery, dnsheader** dh, dnsheader* dhCopy)
 {
@@ -1451,11 +1429,6 @@ static void processUDPQuery(ClientState& cs, LocalHolders& holders, const struct
       dnssecOK = (getEDNSZ(dq) & EDNS_HEADER_FLAG_DO);
       if (packetCache->get(dq, consumed, dh->id, query, &cachedResponseSize, &cacheKey, subnet, dnssecOK, allowExpired)) {
         DNSResponse dr(dq.qname, dq.qtype, dq.qclass, dq.consumed, dq.local, dq.remote, reinterpret_cast<dnsheader*>(query), dq.size, cachedResponseSize, false, &queryRealTime);
-
-// GCA - copy qTag data into response object from question
-//              allows normal cache hit to pass qTag data
-
-        copyQTag(dr, dq.qTag);
 
 #ifdef HAVE_PROTOBUF
         dr.uniqueId = dq.uniqueId;
