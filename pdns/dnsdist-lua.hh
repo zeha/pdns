@@ -21,6 +21,8 @@
  */
 #pragma once
 
+#include "dolog.hh"
+
 class LuaAction : public DNSAction
 {
 public:
