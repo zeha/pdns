@@ -33,7 +33,7 @@ def delete_cdb():                                               # delete test cd
 
 class TestNamedCache(DNSDistTest):
     create_cdb()                                                # create test cdb file first
-    _protobufServerPort = 4242
+    _protobufServerPort = 4342
     _protobufQueue = Queue.Queue()
     _protobufCounter = 0
     _config_params = ['_testServerPort', '_protobufServerPort']
