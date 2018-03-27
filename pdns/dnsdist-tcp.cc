@@ -293,10 +293,11 @@ void* tcpClientThread(int pipefd)
 
         if (qlen < sizeof(dnsheader)) {
           g_stats.nonCompliantQueries++;
+          ci.cs->stats.dropInvalid++;
           break;
         }
 
-        ci.cs->queries++;
+        ci.cs->stats.queries++;
         g_stats.queries++;
 
         if (g_maxTCPQueriesPerConn && queriesCount > g_maxTCPQueriesPerConn) {
@@ -334,6 +335,7 @@ void* tcpClientThread(int pipefd)
           bool decrypted = handleDNSCryptQuery(query, qlen, dnsCryptQuery, &decryptedQueryLen, true, queryRealTime.tv_sec, response);
 
           if (!decrypted) {
+            ci.cs->stats.dropInvalid++;
             if (response.size() > 0) {
               handler.writeSizeAndMsg(response.data(), response.size(), g_tcpSendTimeout);
             }
@@ -345,6 +347,7 @@ void* tcpClientThread(int pipefd)
         struct dnsheader* dh = reinterpret_cast<struct dnsheader*>(query);
 
         if (!checkQueryHeaders(dh)) {
+          ci.cs->stats.dropInvalid++;
           goto drop;
         }
 
@@ -359,6 +362,7 @@ void* tcpClientThread(int pipefd)
 	DNSQuestion dq(&qname, qtype, qclass, &dest, &ci.remote, dh, queryBuffer.capacity(), qlen, true, &queryRealTime);
 
 	if (!processQuery(holders, dq, poolname, &delayMsec, now)) {
+    ci.cs->stats.dropRule++;
 	  goto drop;
 	}
 
@@ -372,6 +376,7 @@ void* tcpClientThread(int pipefd)
           dr.qTag = dq.qTag;
 
           if (!processResponse(holders.selfAnsweredRespRulactions, dr, &delayMsec)) {
+            ci.cs->stats.dropRule++;
             goto drop;
           }
 
@@ -381,6 +386,7 @@ void* tcpClientThread(int pipefd)
           }
 #endif
           handler.writeSizeAndMsg(query, dq.len, g_tcpSendTimeout);
+          ci.cs->stats.countReply(FrontendStats::Rule, dh->rcode);
           g_stats.selfAnswered++;
           continue;
         }
@@ -423,6 +429,7 @@ void* tcpClientThread(int pipefd)
             dr.qTag = dq.qTag;
 
             if (!processResponse(holders.cacheHitRespRulactions, dr, &delayMsec)) {
+              ci.cs->stats.dropRule++;
               goto drop;
             }
 
@@ -432,6 +439,7 @@ void* tcpClientThread(int pipefd)
             }
 #endif
             handler.writeSizeAndMsg(cachedResponse, cachedResponseSize, g_tcpSendTimeout);
+            ci.cs->stats.countReply(FrontendStats::PacketCache, dh->rcode);
             g_stats.cacheHits++;
             continue;
           }
@@ -453,6 +461,7 @@ void* tcpClientThread(int pipefd)
             dr.qTag = dq.qTag;
 
             if (!processResponse(holders.selfAnsweredRespRulactions, dr, &delayMsec)) {
+              ci.cs->stats.dropRule++;
               goto drop;
             }
 
@@ -594,6 +603,7 @@ void* tcpClientThread(int pipefd)
         dr.qTag = dq.qTag;
 
         if (!processResponse(localRespRulactions, dr, &delayMsec)) {
+          ci.cs->stats.dropRule++;
           break;
         }
 
@@ -628,6 +638,7 @@ void* tcpClientThread(int pipefd)
           sockets.erase(ds->remote);
         }
 
+        ci.cs->stats.countReply(FrontendStats::Backend, dh->rcode);
         g_stats.responses++;
         struct timespec answertime;
         gettime(&answertime);

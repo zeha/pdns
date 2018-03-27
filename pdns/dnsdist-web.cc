@@ -430,12 +430,23 @@ static void connectionThread(int sock, ComboAddress remote, string password, str
       for(const auto& front : g_frontends) {
         if (front->udpFD == -1 && front->tcpFD == -1)
           continue;
+        Json::object replies {};
+        for(const auto& replyEntry : front->stats.replyEntries) {
+          Json::object rcodes {};
+          for(const auto& rcodeEntry : replyEntry.second->entries) {
+            rcodes[rcodeEntry.first] = (double) rcodeEntry.second->load();
+          }
+          replies[replyEntry.first] = rcodes;
+        }
         Json::object frontend{
           { "id", num++ },
           { "address", front->local.toStringWithPort() },
           { "udp", front->udpFD >= 0 },
           { "tcp", front->tcpFD >= 0 },
-          { "queries", (double) front->queries.load() }
+          { "queries", (double) front->stats.queries.load() },
+          { "dropRule", (double) front->stats.dropRule.load() },
+          { "dropInvalid", (double) front->stats.dropInvalid.load() },
+          { "replies", replies }
         };
         frontends.push_back(frontend);
       }

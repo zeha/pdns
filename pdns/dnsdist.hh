@@ -217,6 +217,47 @@ struct DNSDistStats
   };
 };
 
+struct RCodeStats {
+  using stat_t=std::atomic<uint64_t>;
+
+  std::array<stat_t, 12> perRCode{}; // 0=UNKNOWN, 1+(0..10) for NoError..NotZone
+
+  std::vector<std::pair<std::string, stat_t*>> entries{
+    {"UNKNOWN", &perRCode[0]},
+    {"NoError", &perRCode[RCode::NoError + 1]},
+    {"FormErr", &perRCode[RCode::FormErr + 1]},
+    {"ServFail", &perRCode[RCode::ServFail + 1]},
+    {"NXDomain", &perRCode[RCode::NXDomain + 1]},
+    {"NotImp", &perRCode[RCode::NotImp + 1]},
+    {"Refused", &perRCode[RCode::Refused + 1]},
+    {"YXDomain", &perRCode[RCode::YXDomain + 1]},
+    {"YXRRSet", &perRCode[RCode::YXRRSet + 1]},
+    {"NotAuth", &perRCode[RCode::NotAuth + 1]},
+    {"NotZone", &perRCode[RCode::NotZone + 1]},
+  };
+
+};
+
+struct FrontendStats
+{
+  using stat_t=std::atomic<uint64_t>;
+  stat_t queries{0};
+
+  enum cause_ { Backend=1, PacketCache=2, Rule=3 };
+  std::array<RCodeStats, 4> replies{};  // 0=total, 1..3 see enum cause_.
+  stat_t dropRule{0};
+  stat_t dropInvalid{0};
+
+  std::vector<std::pair<std::string, RCodeStats*>> replyEntries{
+    {"total", &replies[0]},
+    {"Backend", &replies[Backend]},
+    {"PacketCache", &replies[PacketCache]},
+    {"Rule", &replies[Rule]}
+  };
+
+  void countReply(enum cause_ cause, uint16_t rcode);
+};
+
 
 extern struct DNSDistStats g_stats;
 void doLatencyStats(double udiff);
@@ -349,7 +390,7 @@ struct IDState
 #endif
   std::shared_ptr<DNSDistPacketCache> packetCache{nullptr};
   std::shared_ptr<QTag> qTag{nullptr};
-  const ClientState* cs{nullptr};
+  ClientState* cs{nullptr};
   uint32_t cacheKey;                                          // 8
   std::atomic<uint16_t> age;                                  // 4
   uint16_t qtype;                                             // 2
@@ -436,7 +477,8 @@ struct ClientState
   std::shared_ptr<DNSCryptContext> dnscryptCtx{nullptr};
 #endif
   shared_ptr<TLSFrontend> tlsFrontend;
-  std::atomic<uint64_t> queries{0};
+  // std::atomic<uint64_t> queries{0};
+  FrontendStats stats;
   int udpFD{-1};
   int tcpFD{-1};
   bool muted{false};

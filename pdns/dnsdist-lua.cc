@@ -1107,7 +1107,7 @@ void setupLuaConfig(bool client)
 
         size_t counter = 0;
         for (const auto& front : g_frontends) {
-          ret << (fmt % counter % front->local.toStringWithPort() % (front->udpFD != -1 ? "UDP" : "TCP") % front->queries) << endl;
+          // ret << (fmt % counter % front->local.toStringWithPort() % (front->udpFD != -1 ? "UDP" : "TCP") % front->queries) << endl;
           counter++;
         }
         g_outputBuffer=ret.str();

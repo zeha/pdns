@@ -100,7 +100,8 @@ try
           string frontName = front->local.toString() + ":" + std::to_string(front->local.getPort()) +  (front->udpFD >= 0 ? "_udp" : "_tcp");
           boost::replace_all(frontName, ".", "_");
           const string base = "dnsdist." + hostname + ".main.frontends." + frontName + ".";
-          str<<base<<"queries" << ' ' << front->queries.load() << " " << now << "\r\n";
+          str<<base<<"queries" << ' ' << front->stats.queries.load() << " " << now << "\r\n";
+          // for (const auto& entry : front->stats.entries
         }
         const auto localPools = g_pools.getCopy();
         for (const auto& entry : localPools) {

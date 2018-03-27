@@ -198,6 +198,20 @@ void doLatencyStats(double udiff)
   doAvg(g_stats.latencyAvg1000000, udiff, 1000000);
 }
 
+void FrontendStats::countReply(enum cause_ cause, uint16_t rcode)
+{
+  auto* stats = &replies.at(cause);
+
+  if (rcode > stats->perRCode.size()) {
+    // unknown rcode, account into "other"
+    stats->perRCode[0]++;
+    replies[0].perRCode[0]++;
+  } else {
+    stats->perRCode[rcode+1]++;
+    replies[0].perRCode[rcode+1]++;
+  }
+}
+
 bool responseContentMatches(const char* response, const uint16_t responseLen, const DNSName& qname, const uint16_t qtype, const uint16_t qclass, const ComboAddress& remote)
 {
   uint16_t rqtype, rqclass;
@@ -498,12 +512,13 @@ try {
             continue;
           }
 #endif
-
           ComboAddress empty;
           empty.sin4.sin_family = 0;
           /* if ids->destHarvested is false, origDest holds the listening address.
              We don't want to use that as a source since it could be 0.0.0.0 for example. */
           sendUDPResponse(origFD, response, responseLen, ids->delayMsec, ids->destHarvested ? ids->origDest : empty, ids->origRemote);
+
+          ids->cs->stats.countReply(FrontendStats::Backend, dh->rcode);
         }
 
         g_stats.responses++;
@@ -1171,7 +1186,7 @@ static bool isUDPQueryAcceptable(ClientState& cs, LocalHolders& holders, const s
     return false;
   }
 
-  cs.queries++;
+  cs.stats.queries++;
   g_stats.queries++;
 
   if (HarvestDestinationAddress(msgh, &dest)) {
@@ -1250,6 +1265,7 @@ static void processUDPQuery(ClientState& cs, LocalHolders& holders, const struct
 
   try {
     if (!isUDPQueryAcceptable(cs, holders, msgh, remote, dest)) {
+      cs.stats.dropInvalid++;
       return;
     }
 
@@ -1265,6 +1281,7 @@ static void processUDPQuery(ClientState& cs, LocalHolders& holders, const struct
     std::shared_ptr<DNSCryptQuery> dnsCryptQuery = nullptr;
 
     if (!checkDNSCryptQuery(cs, query, len, dnsCryptQuery, dest, remote, queryRealTime.tv_sec)) {
+      cs.stats.dropInvalid++;
       return;
     }
 #endif
@@ -1273,6 +1290,7 @@ static void processUDPQuery(ClientState& cs, LocalHolders& holders, const struct
     queryId = ntohs(dh->id);
 
     if (!checkQueryHeaders(dh)) {
+      cs.stats.dropInvalid++;
       return;
     }
 
@@ -1287,6 +1305,7 @@ static void processUDPQuery(ClientState& cs, LocalHolders& holders, const struct
 
     if (!processQuery(holders, dq, poolname, &delayMsec, now))
     {
+      cs.stats.dropRule++;
       return;
     }
 
@@ -1304,6 +1323,7 @@ static void processUDPQuery(ClientState& cs, LocalHolders& holders, const struct
         dr.qTag = dq.qTag;
 
         if (!processResponse(holders.selfAnsweredRespRulactions, dr, &delayMsec)) {
+          cs.stats.dropRule++;
           return;
         }
 
@@ -1324,6 +1344,7 @@ static void processUDPQuery(ClientState& cs, LocalHolders& holders, const struct
         }
 
         g_stats.selfAnswered++;
+        cs.stats.countReply(FrontendStats::Rule, dr.dh->rcode);
         doLatencyStats(0);  // we're not going to measure this
       }
 
@@ -1367,6 +1388,7 @@ static void processUDPQuery(ClientState& cs, LocalHolders& holders, const struct
         dr.qTag = dq.qTag;
 
         if (!processResponse(holders.cacheHitRespRulactions, dr, &delayMsec)) {
+          cs.stats.dropRule++;
           return;
         }
 
@@ -1389,6 +1411,7 @@ static void processUDPQuery(ClientState& cs, LocalHolders& holders, const struct
         }
 
         g_stats.cacheHits++;
+        cs.stats.countReply(FrontendStats::PacketCache, dr.dh->rcode);
         doLatencyStats(0);  // we're not going to measure this
         return;
       }
@@ -1413,6 +1436,7 @@ static void processUDPQuery(ClientState& cs, LocalHolders& holders, const struct
         dr.qTag = dq.qTag;
 
         if (!processResponse(holders.selfAnsweredRespRulactions, dr, &delayMsec)) {
+          cs.stats.dropRule++;
           return;
         }
 
@@ -2067,6 +2091,7 @@ static void usage()
 int main(int argc, char** argv)
 try
 {
+
   size_t udpBindsCount = 0;
   size_t tcpBindsCount = 0;
   rl_attempted_completion_function = my_completion;
