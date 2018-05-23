@@ -115,21 +115,4 @@ bool getCDB(std::string strKey, std::string &strValue);
 
 };
 
-
-class NamedCache {
-
-public:
-
-  NamedCache();
-  ~NamedCache();
-  bool setSize(int iEntries);
-  int  getSize();
-  int  getEntries();
-  std::string errMsg();
-  bool open(std::string strFileName);
-  bool close();
-  bool get(std::string strKey, std::string &strValue);
-
-};
-
 #endif // LRUCACHE_H
