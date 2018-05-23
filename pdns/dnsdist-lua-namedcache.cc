@@ -35,61 +35,6 @@
 #include "remote_logger.hh"
 
 
-// GCA - allow protobuf generation & execute next action, alternate method
-class RemoteLogActionX : public DNSAction, public boost::noncopyable
-{
-public:
-
-  RemoteLogActionX(std::shared_ptr<RemoteLoggerInterface> logger, boost::optional<std::function<std::tuple<int, string>(DNSQuestion*, DNSDistProtoBufMessage*)> > alterFuncX): d_logger(logger), d_alterFuncX(alterFuncX)
-  {
-  }
-  DNSAction::Action operator()(DNSQuestion* dq, string* ruleresult) const override
-  {
-   int iRetAction = (int) DNSAction::Action::None;       // default action
-
-#ifdef HAVE_PROTOBUF
-    DNSDistProtoBufMessage message(*dq);
-      if (d_alterFuncX) {
-        std::lock_guard<std::mutex> lock(g_luamutex);
-        auto ret  = (*d_alterFuncX)(dq, &message);
-        std::string strTemp = std::get<1>(ret);
-        iRetAction = (int) std::get<0>(ret);
-        std::string data;
-       switch(iRetAction) {
-         case (int)DNSAction::Action::Nxdomain:             // Nxdomain - send out protobuf
-            message.serialize(data);
-            d_logger->queueData(data);
-            break;
-         case (int)DNSAction::Action::Spoof:                // Spoof - send out protobuf
-            std::vector<std::string> addrs;
-            stringtok(addrs, strTemp, " ,");
-            if (addrs.size() > 0) {
-              ComboAddress spoofAddr(strTemp);
-              message.setResponder(spoofAddr);              // need to set spoof address out thru protobuf msg
-            }
-            message.serialize(data);
-            d_logger->queueData(data);
-            break;
-       }
-        if(ruleresult)
-           *ruleresult=std::get<1>(ret);
-        return (Action)std::get<0>(ret);
-      }
-
-#endif /* HAVE_PROTOBUF */
-
-    return (DNSAction::Action) iRetAction;
-  }
-  string toString() const override
-  {
-    return "remote logX to " + d_logger->toString();
-  }
-private:
-  std::shared_ptr<RemoteLoggerInterface> d_logger;
-  boost::optional<std::function<std::tuple<int, string>(DNSQuestion*, DNSDistProtoBufMessage*)> > d_alterFuncX;       // returns int/string now!
-
-};
-
 void setupLuaNamedCache(bool client)
 {
 #ifdef HAVE_NAMEDCACHE
@@ -171,21 +116,6 @@ void setupLuaNamedCache(bool client)
                                  m - object create with newDNSDistProtobufMessage
                            - example:
                                  remoteLog(rlBlkLst, m)
-
-        RemoteLogActionX() - Seth's function to modify a protobuf message and allow other actions -  going with Ari's
-                           - parameters:
-                                 rlBlkLst - object create with newRemoteLogger
-                                 luaCheckLogBLK - lua subroutine to be called
-                           - example:
-                                 addAction(AllRule(), RemoteLogActionX(rlBlkLst, luaCheckLogBLX))
-                           - notes:
-                                 function setup to be called has two parameters and must return one
-                                    parameters:
-                                        dq - DNSQuestion
-                                        pbMsg - DNSDistProtoBufMessage
-                                    return:
-                                       DNSAction type like DNSAction.Nxdomain or DNSAction.None
-                                 example - luaCheckLogBLX(dq, pbMsg)
 
     Debugging functions:
         getErrNum()        - return error message number (errno, from last i/o operation)
@@ -572,21 +502,6 @@ void setupLuaNamedCache(bool client)
   });
 
 #endif // HAVE_NAMEDCACHE
-
-// GCA - Protobuf generation and allowing next 'action' to occur
-    g_lua.writeFunction("RemoteLogActionX", [](std::shared_ptr<RemoteLoggerInterface> logger, boost::optional<std::function<std::tuple<int, string>(DNSQuestion*, DNSDistProtoBufMessage*)> > alterFuncX) {
-      // avoids potentially-evaluated-expression warning with clang.
-      RemoteLoggerInterface& rl = *logger.get();
-      if (typeid(rl) != typeid(RemoteLogger)) {
-        // We could let the user do what he wants, but wrapping PowerDNS Protobuf inside a FrameStream tagged as dnstap is logically wrong.
-        throw std::runtime_error("RemoteLogActionX only takes RemoteLogger.");
-      }
-#ifdef HAVE_PROTOBUF
-        return std::shared_ptr<DNSAction>(new RemoteLogActionX(logger, alterFuncX));
-#else
-        throw std::runtime_error("Protobuf support is required to use RemoteLogActionX");
-#endif
-      });
 
 // GCA - Allow Protobuf generation 'on the fly'
     g_lua.writeFunction("newDNSDistProtobufMessage", [](DNSQuestion *dq) {
