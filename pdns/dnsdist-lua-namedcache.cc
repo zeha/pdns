@@ -402,7 +402,7 @@ void setupLuaNamedCache(bool client)
 	      csize = *maxEntries;
 	    }
 
-        std::thread t(namedCacheLoadThread, pool, fileName, "LRU", csize, CACHE_DEBUG::DEBUG_NONE);
+        std::thread t(namedCacheLoadThread, pool, fileName, csize, CACHE_DEBUG::DEBUG_NONE);
 	    t.detach();
 	    return true;
 	  }

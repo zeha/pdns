@@ -10,7 +10,6 @@
 #ifdef HAVE_NAMEDCACHE
 
 enum CACHE_HIT {HIT_NONE, HIT_CDB, HIT_CACHE, HIT_CDB_NO_DATA, HIT_CACHE_NO_DATA};
-enum CACHE_TYPE {TYPE_NONE, TYPE_CDB, TYPE_MAP, TYPE_LRU};
 enum CACHE_DEBUG {DEBUG_NONE = 0x00, DEBUG_DISP = 0X01, DEBUG_SLOW_LOAD = 0x02, DEBUG_MALLOC_TRIM = 0x04, DEBUG_DISP_LOAD_DETAIL = 0X08};
 
 class BaseNamedCache {
@@ -32,9 +31,6 @@ public:
   virtual std::string getErrMsg(void)=0;
   static  std::string getDebugText(int iDebug);
   static  std::string getFoundText(int iStat);
-  static  std::string getCacheTypeText(int iType, bool bLoadBindMode=false);
-  static  int parseCacheTypeText(const std::string& strCacheType);
-
 };
 
 #endif

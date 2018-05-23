@@ -14,27 +14,6 @@
 
 enum LOC {NONE, CDB, CACHE};
 
-
-// ----------------------------------------------------------------------------
-class CdbMapCache {
-
-public:
-   CdbMapCache();
-   ~CdbMapCache();
-   int  loadCdbMap(std::string strCdbName, int iDebug=0);
-   int  getCacheSize();
-   int  getCdbEntries();
-   int  getCache(const std::string strKey, std::string &strValue);
-private:
-   int  iEntriesRead;
-   std::map<string, string> mapKeyData;
-   void uint32_unpack(char s[4],uint32_t *u);
-   int  getNum(int fd, uint32_t &u32Num);
-   int  getText(int fd, unsigned int uBytes, std::string &strData);
-   bool get(std::string key, std::string &strData);
-};
-
-
 // ----------------------------------------------------------------------------
 class Node {
   public:
