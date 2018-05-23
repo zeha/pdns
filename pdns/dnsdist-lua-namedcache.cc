@@ -100,42 +100,6 @@ void setupLuaNamedCache(bool client)
                            - examples:
                                 loadFromCDB("xxx.cdb", 200000, "cdb")
                                 loadFromCDB("xxx.cdb")  -- mode defaults to cdb, maxEntries to 100000
-        lookup()          - use string with dns name & return lua readable table
-                           - parameters:
-                                strQuery -  string to lookup without extra period at end of query string
-                                mode     -  optional integer for walking mode
-                                            0 - default, no walking
-                                            1 - walk dns name from right to left
-                                            2 - walk dns name from left to right
-                                            3 - walk dns name from right to left - alternate non vector
-                                debug    -  optional boolean, if true then warnlog debugging - not for normal use
-                           - example:
-                                iResult = getNamedCache("xxx"):lookup("bad.example.com")
-                                iResult = getNamedCache("xxx"):lookup("bad.example.com", 1)
-                           - return lua table with QTag fields:
-                                fields:
-                                    found - boolean indicating if data found or not
-                                            true - found with data
-                                            false - not found, OR found without data
-                                    data - string from cdb table match
-        lookupQ()          - use DNSQuestion & return results in lua readable table and the internal DNSQuestion QTag object.
-                           - parameters:
-                                DNSQuestion -  object passed to function setup by addLuaFunction() in dnsdist configuration file.
-                                mode     -  optional integer for walking mode
-                                            0 - default, no walking
-                                            1 - walk dns name from right to left
-                                            2 - walk dns name from left to right
-                                            3 - walk dns name from right to left - alternate non vector
-                                debug    -  optional boolean, if true then warnlog debugging - not for normal use
-                           - example:
-                                iResult = getNamedCache("xxx"):lookupQ(dq)
-                                iResult = getNamedCache("xxx"):lookupQ(dq, 1)
-                           - return lua table with QTag fields:
-                                DNSQuestion QTag fields:
-                                    found - boolean indicating if data found or not
-                                            true - found with data
-                                            false - not found, OR found without data
-                                    data - string from cdb table match
 
         newDNSDistProtobufMessage() - Ari's function to create a protobuf message 'on the fly'
                                       used with remoteLog()
