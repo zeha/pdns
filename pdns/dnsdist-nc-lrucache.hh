@@ -41,8 +41,7 @@ public:
   LRUCache(int maxEntries);
   ~LRUCache();
   void setDebug(int debug=0);
-  bool setCacheMode(int iMode);
-  bool init(int capacity, int iCacheMode);
+  bool init(int capacity);
   int  getSize();
   int  getErrNum(void);
   std::string getErrMsg(void);
@@ -54,7 +53,6 @@ public:
 
 private:
   int iMaxEntries;
-  int iCacheMode;       // CACHE::NONE, CACHE::RPZ, CACHE::ALL, CACHE::TEST
   cdbIO cdbFH;
   lruCache *ptrCache;
   void put(const std::string key, const std::string value);

@@ -146,7 +146,6 @@ public:
   bool setSize(int iEntries);
   int  getSize();
   int  getEntries();
-  bool setMode(int iMode);
   std::string errMsg();
   bool open(std::string strFileName);
   bool close();

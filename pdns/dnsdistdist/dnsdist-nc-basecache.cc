@@ -36,9 +36,6 @@ string strMsg;
        case CACHE_DEBUG::DEBUG_DISP_LOAD_DETAIL:
          strMsg += "DISPLAY_LOAD_DETAIL ";
          break;
-       case CACHE_DEBUG::DEBUG_TEST_ALWAYS_HIT:
-         strMsg += "TEST_ALWAYS_HIT ";
-         break;
        default:
          break;
        }
@@ -72,51 +69,6 @@ std::string strFound;
    break;
  }
  return(strFound);
-}
-
-std::string BaseNamedCache::getCacheModeText(int iMode)
-{
-std::string strFound;
-
-  switch(iMode) {
-  case CACHE_MODE::MODE_NONE:
-    strFound = "None";
-    break;
-  case CACHE_MODE::MODE_CDB:
-    strFound = "CDB";
-    break;
-  case CACHE_MODE::MODE_ALL:
-    strFound = "ALL";
-    break;
-  case CACHE_MODE::MODE_TEST:
-    strFound = "TEST";
-    break;
-  default:
-    strFound = "????";
-    break;
-  }
- return(strFound);
-}
-
-int BaseNamedCache::parseCacheModeText(const std::string& strCacheMode)
-{
-std::string strTemp;
-
-  strTemp = toLower(strCacheMode);
-  if(strTemp == "none") {
-    return(CACHE_MODE::MODE_NONE);
-  }
-  if(strTemp == "cdb") {
-    return(CACHE_MODE::MODE_CDB);
-  }
-  if(strTemp == "all") {
-    return(CACHE_MODE::MODE_ALL);
-  }
-  if(strTemp == "test") {
-    return(CACHE_MODE::MODE_TEST);
-  }
-
-  return( CACHE_MODE::MODE_NONE);
 }
 
 std::string BaseNamedCache::getCacheTypeText(int iType, bool bLoadBindMode)

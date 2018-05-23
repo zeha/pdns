@@ -38,15 +38,8 @@ std::string NoCache::getErrMsg()
   return("");
 }
 
-bool NoCache::setCacheMode(int iMode)
+bool NoCache::init(int iEntries)
 {
-  iCacheMode = iMode;
-  return(true);
-}
-
-bool NoCache::init(int iEntries, int iCacheMode)
-{
-  setCacheMode(iCacheMode);
   (void) iEntries;
   return(true);
 }
@@ -64,15 +57,6 @@ int NoCache::getEntries()
 int NoCache::getCache(const std::string strKey, std::string &strValue)
 {
 int iStatus = CACHE_HIT::HIT_NONE;
-
-  switch(iCacheMode) {
-  case CACHE_MODE::MODE_TEST:
-    strValue = "Test";
-    iStatus = CACHE_HIT::HIT_CACHE;
-    break;
-  default:
-    break;
-  }
 
   return(iStatus);
 }
@@ -122,15 +106,8 @@ std::string CdbNoCache::getErrMsg()
 
 }
 
-bool CdbNoCache::setCacheMode(int iMode)
+bool CdbNoCache::init(int iEntries)
 {
-  (void) iMode;
-  return(true);
-}
-
-bool CdbNoCache::init(int iEntries, int iCacheMode)
-{
-  setCacheMode(iCacheMode);
   (void) iEntries;
   return(true);
 }

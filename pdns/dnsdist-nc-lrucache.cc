@@ -101,15 +101,8 @@ void LRUCache::setDebug(int debug)
   ptrCache->setDebug(iDebug);
 }
 
-bool LRUCache::setCacheMode(int iMode)
+bool LRUCache::init(int capacity)
 {
-  iCacheMode = iMode;
-  return(true);
-}
-
-bool LRUCache::init(int capacity, int iCacheMode)
-{
-  setCacheMode(iCacheMode);
   this->iMaxEntries = capacity;
   if(ptrCache != nullptr) {
     delete ptrCache;
@@ -194,16 +187,11 @@ int LRUCache::getCache(const std::string strKey, std::string &strValue)
   }
 
   if(cdbFH.get(strKey, strValue) == true) {     // not in cache, read from CDB
-    if(iCacheMode >= CACHE_MODE::MODE_CDB) {
-       put(strKey, strValue);                   // store in cache
-    }
+    put(strKey, strValue);                      // store in cache
     if(strValue.empty()) {
       return(CACHE_HIT::HIT_CDB_NO_DATA);       // no data in cdb entry
     }
     return(CACHE_HIT::HIT_CDB);                 // data in cdb entry
-  }
-  if(iCacheMode == CACHE_MODE::MODE_ALL) {
-     put(strKey, "");                           // 'mode all' - store empty value in cache
   }
   return(CACHE_HIT::HIT_NONE);                  // ret status is 'no hit'
 }

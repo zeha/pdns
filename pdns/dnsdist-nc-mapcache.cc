@@ -273,15 +273,8 @@ std::string CdbMapCache::getErrMsg()
   return(strErrMsg);
 }
 
-bool CdbMapCache::setCacheMode(int iMode)
+bool CdbMapCache::init(int iEntries)
 {
-  iCacheMode = iMode;
-  return(true);
-}
-
-bool CdbMapCache::init(int iEntries, int iCacheMode)
-{
-  setCacheMode(iCacheMode);
   iEntries = 0;
   return(true);
 }

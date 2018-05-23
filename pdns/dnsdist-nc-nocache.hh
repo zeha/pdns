@@ -14,8 +14,7 @@ public:
    NoCache();
    ~NoCache();
    void  setDebug(int debug=0);
-   bool  setCacheMode(int iMode);
-   bool  init(int capacity, int iCacheMode);
+   bool  init(int capacity);
    bool  open(std::string strFileName);
    bool  close(void);
    int   getErrNum(void);
@@ -26,7 +25,6 @@ public:
    bool  setSize(int iEntries);
 private:
    int iDebug;
-   int iCacheMode;       // CACHE::NONE, CACHE::RPZ, CACHE::ALL, CACHE::TEST
 
 };
 
@@ -36,8 +34,7 @@ public:
    CdbNoCache();
    ~CdbNoCache();
    void  setDebug(int debug=0);
-   bool  setCacheMode(int iMode);
-   bool  init(int capacity, int iCacheMode);
+   bool  init(int capacity);
    bool  open(std::string strFileName);
    bool  close(void);
    int   getErrNum(void);

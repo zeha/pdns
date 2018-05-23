@@ -64,9 +64,9 @@
 class DNSDistNamedCache
 {
 public:
-  DNSDistNamedCache(const std::string& cacheName, const std::string& fileName, const std::string& reqType, const std::string& reqMode, size_t maxEntries, int iDebug=0);
+  DNSDistNamedCache(const std::string& cacheName, const std::string& fileName, const std::string& reqType, size_t maxEntries, int iDebug=0);
   ~DNSDistNamedCache();
-  bool init(const std::string& cacheName, const std::string& fileName, const std::string& reqType, const std::string& reqMode, size_t maxEntries);
+  bool init(const std::string& cacheName, const std::string& fileName, const std::string& reqType, size_t maxEntries);
   bool close(void);
   uint64_t getMaxEntries();
   std::string   getCacheName();
@@ -88,7 +88,6 @@ public:
   int      lookupWalk(const std::string& strQuery, std::string& strData, int iWalkMode = 0, bool bDebug = false);
   bool     reset();
   std::string getCacheTypeText(bool bLoadBindMode = false);
-  std::string getCacheModeText();
   time_t getCreationTime();
   time_t getCounterResetTime();
   static int parseCacheTypeText(const std::string& strCacheType);
@@ -98,7 +97,6 @@ public:
 
   int iDebug;
   int iCacheType;
-  int iCacheMode;
   std::string strFileName;
   size_t uMaxEntries;
   BaseNamedCache *bnc;
@@ -136,9 +134,9 @@ extern bool deleteNamedCacheEntry(namedCaches_t& namedCachesTable, const string&
 
 extern int  swapNamedCacheEntries(namedCaches_t& namedCachesTable, const string& findCacheNameA, const string& findCacheNameB, const int iDebug=0);
 
-extern void namedCacheLoadThread(std::shared_ptr<DNSDistNamedCache> entryCacheA, const std::string strFileName, const std::string strCacheType, const std::string strCacheMode, int iMaxEntries, const int iDebug=0);
+extern void namedCacheLoadThread(std::shared_ptr<DNSDistNamedCache> entryCacheA, const std::string strFileName, const std::string strCacheType, int iMaxEntries, const int iDebug=0);
 
-extern void namedCacheReloadThread(const std::string& strCacheNameA,  boost::optional<int> maxEntries);
+extern void namedCacheReloadThread(const std::string& strCacheNameA, boost::optional<int> maxEntries);
 extern std::string getAllNamedCacheStatus(namedCaches_t& namedCachesTable, int iDebug = 0);
 
 #endif

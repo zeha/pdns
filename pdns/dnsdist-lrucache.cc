@@ -497,13 +497,6 @@ int iEntries = 0;
     return(iEntries);
 }
 
-bool NamedCache::setMode(int iMode)
-{
-bool bStatus = true;
-
-    return(bStatus);
-}
-
 std::string NamedCache::errMsg()
 {
 std::string strErrMsg = "";

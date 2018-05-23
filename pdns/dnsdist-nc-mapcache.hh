@@ -14,8 +14,7 @@ public:
    CdbMapCache();
    ~CdbMapCache();
    void  setDebug(int debug);
-   bool  setCacheMode(int iMode);
-   bool  init(int capacity, int iCacheMode);
+   bool  init(int capacity);
    bool  open(std::string strFileName);
    bool  close(void);
    int   getErrNum(void);
@@ -27,7 +26,6 @@ public:
 private:
    int iDebug;
    int iEntriesRead;
-   int iCacheMode;                       // not used at present
    int iErrNum;                          // errno
    std::string strErrMsg;
    std::map<std::string, std::string> mapKeyData;

@@ -363,28 +363,7 @@ void setupLuaNamedCache(bool client)
 	return empty;
       });
 
-    /* NamedCacheX::loadFromCDB(fileName)
-     *
-     * Populate a named cache with the contents of the CDB file at fileName.
-     *
-     * loadFromCDB will return a boolean value to indicate whether or not the
-     * loading operation was successful.
-     */
-     g_lua.registerFunction<bool(std::shared_ptr<DNSDistNamedCache>::*)(const string&)>("loadFromCDB", [client](const std::shared_ptr<DNSDistNamedCache>pool, const string& fileName) {
-        if (client)
-          return false;
-        if (pool) {
-          std::shared_ptr<DNSDistNamedCache> nc = pool;
-          if (nc) {         
-            std::thread t(namedCacheLoadThread, pool, fileName, "MAP", "CDB", 1, CACHE_DEBUG::DEBUG_NONE);
-	        t.detach();
-            return true;
-	  }
-	}
-	return false;
-    });
-
-    /* NamedCacheX::bindToCDB(fileName[, cacheSize[, cacheType]])
+    /* NamedCacheX::bindToCDB(fileName[, cacheSize])
      *
      * Bind a named cache to a CDB at path fileName.
      *
@@ -392,10 +371,7 @@ void setupLuaNamedCache(bool client)
      * cache in memory. If the caller does not specify this value, the default
      * value of 100000 will be used.
      *
-     * The caller may also specify the type of entries to cache, in memory:
-     *
-     * 		"all"	Store both CDB hits, and misses in memory.
-     * 		"cdb"	Store only CDB hits (default).
+     * Store only CDB hits.
      *
      * This method will return a boolean value to indicate whether or not the
      * named cache was successfully able to bind to a named cache.
@@ -407,23 +383,18 @@ void setupLuaNamedCache(bool client)
      *
      * 		let ok = nc:bindToCDB("path/to/my.cdb")
      *
-     *  Cache up to 1 million CDB lookup hits and misses:
+     *  Cache up to 1 million CDB lookup hits:
      *
-     *  	let ok = nc:bindToCDB("path/to/my.cdb", 1000000, "all")
+     *  	let ok = nc:bindToCDB("path/to/my.cdb", 1000000)
      */
 
-    g_lua.registerFunction<bool(std::shared_ptr<DNSDistNamedCache>::*)(const string&, const boost::optional<int>, const boost::optional<std::string>)>("bindToCDB", [client](const std::shared_ptr<DNSDistNamedCache>pool,
-                    const string& fileName, const boost::optional<int> maxEntries, const boost::optional<std::string> cacheMode) {
+    g_lua.registerFunction<bool(std::shared_ptr<DNSDistNamedCache>::*)(const string&, const boost::optional<int>)>("bindToCDB", [client](const std::shared_ptr<DNSDistNamedCache>pool,
+                    const string& fileName, const boost::optional<int> maxEntries) {
         if (client)
           return false;
         if (pool) {
           std::shared_ptr<DNSDistNamedCache> nc = pool;
           if (nc) {
-	    // Determine whether to cache only CDB hits in memory, or  CDB hits and misses.
-	    std::string cmode = "cdb";
-	    if (cacheMode) {
-	      cmode = *cacheMode;
-	    }
 
 	    // Determine the maximum number of entries to store in memory.
 	    int csize = 100000;
@@ -431,7 +402,7 @@ void setupLuaNamedCache(bool client)
 	      csize = *maxEntries;
 	    }
 
-        std::thread t(namedCacheLoadThread, pool, fileName, "LRU", cmode, csize, CACHE_DEBUG::DEBUG_NONE);
+        std::thread t(namedCacheLoadThread, pool, fileName, "LRU", csize, CACHE_DEBUG::DEBUG_NONE);
 	    t.detach();
 	    return true;
 	  }

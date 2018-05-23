@@ -3,12 +3,12 @@
 
 #ifdef HAVE_NAMEDCACHE
 
-DNSDistNamedCache::DNSDistNamedCache(const std::string& cacheName, const std::string& fileName, const std::string& reqType, const std::string& reqMode, size_t maxEntries, int debug)
+DNSDistNamedCache::DNSDistNamedCache(const std::string& cacheName, const std::string& fileName, const std::string& reqType, size_t maxEntries, int debug)
 {
   iDebug = debug;
   bnc = nullptr;
   sw = new StopWatch();
-  init(cacheName, fileName, reqType, reqMode, maxEntries);
+  init(cacheName, fileName, reqType, maxEntries);
 }
 
 DNSDistNamedCache::~DNSDistNamedCache()
@@ -25,7 +25,6 @@ bool bStat = true;
   }
 
   iCacheType = CACHE_TYPE::TYPE_NONE;
-  iCacheMode = CACHE_MODE::MODE_NONE;
   strFileName = "";
   uMaxEntries = 0;
   bOpened = false;
@@ -43,7 +42,7 @@ bool bStat = true;
 }
 
 // initialize object - also destroys old one if it exists
-bool DNSDistNamedCache::init(const std::string& cacheName, const std::string& fileName, const std::string& strReqType, const std::string& strReqMode, size_t maxEntries)
+bool DNSDistNamedCache::init(const std::string& cacheName, const std::string& fileName, const std::string& strReqType, size_t maxEntries)
 {
 bool bStat = false;
 
@@ -53,7 +52,6 @@ bool bStat = false;
   uMaxEntries  = maxEntries;
   bOpened      = false;
   iCacheType   = parseCacheTypeText(strReqType);
-  iCacheMode   = parseCacheModeText(strReqMode);
   switch(iCacheType) {
     case CACHE_TYPE::TYPE_LRU:              // bindToCDB()
         bnc = new LRUCache(0);
@@ -76,7 +74,7 @@ bool bStat = false;
         break;
     }
 
-  if(bnc->init(uMaxEntries, iCacheMode) == true) {
+  if(bnc->init(uMaxEntries) == true) {
     if(bnc->open(fileName) == true) {
       bOpened = true;
       if(iCacheType == CACHE_TYPE::TYPE_MAP) {
@@ -97,7 +95,7 @@ bool bStat = false;
 bool DNSDistNamedCache::close(void)
 {
 
-  return(init(strCacheName,"", "", "", 0));       // keep cache name when closing
+  return(init(strCacheName,"", "", 0));       // keep cache name when closing
 }
 
 
@@ -342,11 +340,6 @@ std::string  DNSDistNamedCache::getCacheTypeText(bool bLoadBindMode)
   return(BaseNamedCache::getCacheTypeText(iCacheType, bLoadBindMode));
 }
 
-std::string  DNSDistNamedCache::getCacheModeText()
-{
-  return(BaseNamedCache::getCacheModeText(iCacheMode));
-}
-
 time_t DNSDistNamedCache::getCreationTime()
 {
   return(tCreation);
@@ -362,18 +355,12 @@ int DNSDistNamedCache::parseCacheTypeText(const std::string& strCacheType)
   return(BaseNamedCache::parseCacheTypeText(strCacheType));
 }
 
-int DNSDistNamedCache::parseCacheModeText(const std::string& strCacheMode)
-{
-  return(BaseNamedCache::parseCacheModeText(strCacheMode));
-}
-
 std::string DNSDistNamedCache::getNamedCacheStatusText()
 {
 std::string strText = "";
 
   strText += "Cache name......: " + getCacheName() + "\n";
   strText += "Cache type......: " + getCacheTypeText(true) + "\n";
-  strText += "Cache mode......: " + getCacheModeText() + "\n";
 
   time_t tTemp = getCreationTime();  // Pretty-print creation time of named cache.
   struct tm* tm = localtime(&tTemp);
@@ -426,7 +413,6 @@ void DNSDistNamedCache::getNamedCacheStatusTable(std::unordered_map<string, stri
   tableResult.insert({"cacheMiss", std::to_string(getCacheMiss())});
   tableResult.insert({"errMsg", getErrMsg()});
   tableResult.insert({"errNum", std::to_string(getErrNum())});
-  tableResult.insert({"cacheMode", getCacheModeText()});
   tableResult.insert({"cacheType", getCacheTypeText(true)});      // load / bind
   tableResult.insert({"qps", std::to_string(getQuerySec())});
 
@@ -486,11 +472,7 @@ std::shared_ptr<DNSDistNamedCache> createNamedCacheIfNotExists(namedCaches_t& na
       if(!findCacheName.empty()) {
         vinfolog("Creating named cache %s", findCacheName);
       }
-      if(iDebug & CACHE_DEBUG::DEBUG_TEST_ALWAYS_HIT) {
-            selectedCache = std::make_shared<DNSDistNamedCache>(findCacheName, "", "NONE", "TEST", 0, iDebug);       // make empty 'test' cache, allways return 'cache hit'
-        } else {
-            selectedCache = std::make_shared<DNSDistNamedCache>(findCacheName, "", "NONE", "NONE", 0, iDebug);       // make empty named cache
-          }
+      selectedCache = std::make_shared<DNSDistNamedCache>(findCacheName, "", "NONE", 0, iDebug);       // make empty named cache
       namedCacheTable.insert(std::pair<std::string,std::shared_ptr<DNSDistNamedCache> >(findCacheName, selectedCache));       // insert into table
     }
 
@@ -516,7 +498,7 @@ bool deleteNamedCacheEntry(namedCaches_t& namedCachesTable, const string& findCa
 
     selectedCache = it->second;
 
-    selectedCache->init(findCacheName, "", "", "", 0);     // minimize resources
+    selectedCache->init(findCacheName, "", "", 0);     // minimize resources
     namedCachesTable.erase(it);                           // erase it
     return true;
   }
@@ -535,7 +517,6 @@ void swapSelectedElements(std::shared_ptr<DNSDistNamedCache> dataA, std::shared_
 
   int iDebug               = dataA->iDebug;
   int iCacheType           = dataA->iCacheType;
-  int iCacheMode           = dataA->iCacheMode;
   std::string strFileName  = dataA->strFileName;
   size_t uMaxEntries       = dataA->uMaxEntries;
   BaseNamedCache *bnc      = dataA->bnc;
@@ -544,7 +525,6 @@ void swapSelectedElements(std::shared_ptr<DNSDistNamedCache> dataA, std::shared_
 
   dataA->iDebug             = dataB->iDebug;
   dataA->iCacheType         = dataB->iCacheType;
-  dataA->iCacheMode         = dataB->iCacheMode;
   dataA->strFileName        = dataB->strFileName;
   dataA->uMaxEntries        = dataB->uMaxEntries;
   dataA->bnc                = dataB->bnc;
@@ -554,7 +534,6 @@ void swapSelectedElements(std::shared_ptr<DNSDistNamedCache> dataA, std::shared_
 
   dataB->iDebug             = iDebug;
   dataB->iCacheType         = iCacheType;
-  dataB->iCacheMode         = iCacheMode;
   dataB->strFileName        = strFileName;
   dataB->uMaxEntries        = uMaxEntries;
   dataB->bnc                = bnc;
@@ -611,9 +590,9 @@ std::string getAllNamedCacheStatus(namedCaches_t& namedCacheTable, int iDebug)
 
 
    ostringstream ret;
-   boost::format fmt("%1$8.8s %|5t|%2$4s %|5t|%3$4s %|5t|%4$4s %|5t|%5$8s %|5t|%6$8s %|5t|%7$8s %|5t|%8$12s %|5t|%9$12s %|5t|%10$12s %|5t|%11$12s %|5t|%12$12s %|5t|%13%");
-   ret << (fmt % "Name" % "Type" % "Mode" % "Open" % "MaxCache" % "InCache" % "QuerySec" % "HitsCache" % "NoDataCache" % "CdbHits" % "CdbNoData"% " MissCache" % "FileName" ) << endl;
-   ret << (fmt % "--------" %"----" % "----" % "----" % "--------" % "--------" % "--------" % "------------" % "------------" % "------------" % "------------" % "------------" % "--------" ) << endl;
+   boost::format fmt("%1$8.8s %|5t|%2$4s %|5t|%4$4s %|5t|%5$8s %|5t|%6$8s %|5t|%7$8s %|5t|%8$12s %|5t|%9$12s %|5t|%10$12s %|5t|%11$12s %|5t|%12$12s %|5t|%13%");
+   ret << (fmt % "Name" % "Type" % "Open" % "MaxCache" % "InCache" % "QuerySec" % "HitsCache" % "NoDataCache" % "CdbHits" % "CdbNoData"% " MissCache" % "FileName" ) << endl;
+   ret << (fmt % "--------" %"----" % "----" % "--------" % "--------" % "--------" % "------------" % "------------" % "------------" % "------------" % "------------" % "--------" ) << endl;
 
 
    for (const auto& entry : namedCacheTable) {
@@ -622,7 +601,6 @@ std::string getAllNamedCacheStatus(namedCaches_t& namedCacheTable, int iDebug)
       string strCacheName2 = cacheEntry->getCacheName();
       string strFileName = cacheEntry->getFileName();
       string strType = cacheEntry->getCacheTypeText(true);    // load / bind name
-      string strMode = cacheEntry->getCacheModeText();
       string strFileOpen = cacheEntry->isFileOpen()?"Yes":"No";
       string strMaxEntries = std::to_string(cacheEntry->getMaxEntries());
       string strInCache = std::to_string(cacheEntry->getCacheEntries());
@@ -635,7 +613,7 @@ std::string getAllNamedCacheStatus(namedCaches_t& namedCacheTable, int iDebug)
       string strCdbHitsNoData = std::to_string(cacheEntry->getCdbHitsNoData());
       string strMissCache = std::to_string(cacheEntry->getCacheMiss());
 
-      ret << (fmt % strCacheName % strType % strMode % strFileOpen % strMaxEntries % strInCache % strQueryPerSec % strHitsCache % strNoDataCache % strCdbHits % strCdbHitsNoData % strMissCache % strFileName) << endl;
+      ret << (fmt % strCacheName % strType % strFileOpen % strMaxEntries % strInCache % strQueryPerSec % strHitsCache % strNoDataCache % strCdbHits % strCdbHitsNoData % strMissCache % strFileName) << endl;
    }
    return ret.str();
 };
@@ -643,7 +621,7 @@ std::string getAllNamedCacheStatus(namedCaches_t& namedCacheTable, int iDebug)
 
 
 // Background thread to load cache.......
-void namedCacheLoadThread(std::shared_ptr<DNSDistNamedCache> entryCacheA, const std::string strFileName, const std::string strCacheType, const std::string strCacheMode, int iMaxEntries, int iDebug)
+void namedCacheLoadThread(std::shared_ptr<DNSDistNamedCache> entryCacheA, const std::string strFileName, const std::string strCacheType, int iMaxEntries, int iDebug)
 {
 
   auto start = std::chrono::system_clock::now();
@@ -664,8 +642,8 @@ void namedCacheLoadThread(std::shared_ptr<DNSDistNamedCache> entryCacheA, const 
 
   iDebug = entryCacheA->getDebugFlags();      // set debug level  - FIX THIS
 
-  warnlog("Loading Cache: %s   Type: %s   Mode: %s   Max Entries: %s   Time: %s   File: %s ",
-                                        strCacheName.c_str(), strType.c_str(), strCacheMode.c_str(), strMaxEntries.c_str(), strStartTime.c_str(), strFileName.c_str());
+  warnlog("Loading Cache: %s   Type: %s   Max Entries: %s   Time: %s   File: %s ",
+                                        strCacheName.c_str(), strType.c_str(), strMaxEntries.c_str(), strStartTime.c_str(), strFileName.c_str());
   if(iDebug & CACHE_DEBUG::DEBUG_SLOW_LOAD) {
     warnlog("WARNING! - SLOW DISK LOADING ENABLED FOR DEBUGGING for named cache: %s ", strCacheName.c_str());
   }
@@ -676,7 +654,7 @@ void namedCacheLoadThread(std::shared_ptr<DNSDistNamedCache> entryCacheA, const 
   strCacheNameB += stream.str();                                // unique temporary named cache name for loading in bkg
   std::shared_ptr<DNSDistNamedCache> entryCacheB = createNamedCacheIfNotExists(g_namedCacheTable, strCacheNameB, iDebug);
 
-  bool bStat = entryCacheB->init(strCacheNameB, strFileName, strCacheType, strCacheMode , iMaxEntries);
+  bool bStat = entryCacheB->init(strCacheNameB, strFileName, strCacheType, iMaxEntries);
   if(bStat == true) {
     std::lock_guard<std::mutex> lock(g_luamutex);               // lua lock till end of 'if'
 
@@ -707,7 +685,7 @@ void namedCacheLoadThread(std::shared_ptr<DNSDistNamedCache> entryCacheA, const 
 
 
 // Background thread to reload cache.......
-void namedCacheReloadThread(const std::string& strCacheNameA,  boost::optional<int> maxEntries)
+void namedCacheReloadThread(const std::string& strCacheNameA, boost::optional<int> maxEntries)
 {
 int iDebug = 0;
 
@@ -722,7 +700,6 @@ int iDebug = 0;
   iDebug = entryCacheA->getDebugFlags();
   std::string strFileNameA = entryCacheA->getFileName();
   std::string strCacheTypeA = entryCacheA->getCacheTypeText();
-  std::string strCacheModeA = entryCacheA->getCacheModeText();
   int iMaxEntriesA = entryCacheA->getMaxEntries();
   if(maxEntries) {
     iMaxEntriesA = *maxEntries;
@@ -740,7 +717,7 @@ int iDebug = 0;
 
   std::shared_ptr<DNSDistNamedCache> entryCacheB = createNamedCacheIfNotExists(g_namedCacheTable, strCacheNameB, iDebug);        // create temp
                                                             // load data into temp
-  bool bStat = entryCacheB->init(strCacheNameB, strFileNameA, strCacheTypeA, strCacheModeA , iMaxEntriesA);
+  bool bStat = entryCacheB->init(strCacheNameB, strFileNameA, strCacheTypeA, iMaxEntriesA);
   if(bStat == true) {
     std::lock_guard<std::mutex> lock(g_luamutex);           // lua lock till end of 'if'
     int iSwapStat =  swapNamedCacheEntries(g_namedCacheTable, strCacheNameA, strCacheNameB, iDebug);   // swap
