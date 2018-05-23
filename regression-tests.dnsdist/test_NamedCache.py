@@ -163,11 +163,8 @@ class TestNamedCache(DNSDistTest):
       end
 
 
-      local result  = getNamedCache("xxx"):lookupQ(dq)	        -- compare all the various methods of looking up named cache entries
-      local result2 = yyy:lookupQ(dq)	
-      local strReq  = dq.qname:toString()
-      local result3 = getNamedCache("xxx"):lookup(strReq)
-      local result4 = yyy:lookup(strReq)
+      local result  = getNamedCache("xxx"):lookupQWild(dq, 2)	        -- compare all the various methods of looking up named cache entries
+      local result2 = yyy:lookupQWild(dq, 2)	
 
       if result.found ~= result2.found then
         io.stderr:write(string.format("$$$$$$$$$ checkNamedCache() -> BAD mismatch - bindToCDB & loadFromCDB - found: %%s   2: %%s \\n", result.found, result2.found ))	
@@ -175,24 +172,6 @@ class TestNamedCache(DNSDistTest):
       end
       if result.data ~= result2.data then
         io.stderr:write(string.format("$$$$$$$$$ checkNamedCache() -> BAD mismatch - bindToCDB & loadFromCDB - data: %%s   2: %%s \\n", result.data, result2.data ))	
-        return DNSAction.Nxdomain, ""                           --  this will stop testing....
-      end
-
-      if result.found ~= result3.found then
-        io.stderr:write(string.format("$$$$$$$$$ checkNamedCache() -> BAD mismatch - bindToCDB & loadFromCDB - found: %%s   3: %%s \\n", result.found, result3.found ))	
-        return DNSAction.Nxdomain, ""                           --  this will stop testing....
-      end
-      if result.data ~= result3.data then
-        io.stderr:write(string.format("$$$$$$$$$ checkNamedCache() -> BAD mismatch - bindToCDB & loadFromCDB - data: %%s   3: %%s \\n", result.data, result3.data ))	
-        return DNSAction.Nxdomain, ""                           --  this will stop testing....
-      end
-
-      if result.found ~= result4.found then
-        io.stderr:write(string.format("$$$$$$$$$ checkNamedCache() -> BAD mismatch - bindToCDB & loadFromCDB - found: %%s   4: %%s \\n", result.found, result4.found ))	
-        return DNSAction.Nxdomain, ""                           --  this will stop testing....
-      end
-      if result.data ~= result4.data then
-        io.stderr:write(string.format("$$$$$$$$$ checkNamedCache() -> BAD mismatch - bindToCDB & loadFromCDB - data: %%s   4: %%s \\n", result.data, result4.data ))	
         return DNSAction.Nxdomain, ""                           --  this will stop testing....
       end
 
