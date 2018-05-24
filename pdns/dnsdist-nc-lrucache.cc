@@ -25,10 +25,7 @@
 // see:  http://cr.yp.to/cdb/reading.html
 LRUCache::LRUCache(const std::string& fileName, int maxEntries) : d_maxentries(maxEntries)
 {
-  bool bStatus = cdbFH.open(fileName);
-  if (!bStatus) {
-    throw std::runtime_error("Opening CDB failed: " + fileName + " Error: " + strerror(errno));
-  }
+  d_cdb = make_unique<cdbIO>(fileName);
 }
 
 bool LRUCache::get(const std::string& key, std::string &val)
@@ -73,20 +70,16 @@ int LRUCache::getEntries()
 
 int LRUCache::getErrNum()
 {
-  return(cdbFH.getErrNum());            // get error number from cdbIO
+  return d_cdb->getErrNum();
 }
 
 std::string LRUCache::getErrMsg()
 {
-  return(cdbFH.getErrMsg());            // get error message from cdbIO
+  return d_cdb->getErrMsg();
 }
 
 LRUCache::~LRUCache()
 {
-  bool bStatus = cdbFH.close();
-  if (!bStatus) {
-    warnlog("Closing CDB failed");
-  }
 }
 
 //  read from cache / cdb - strValue cleared if not written to
@@ -99,7 +92,7 @@ int LRUCache::getCache(const std::string strKey, std::string &strValue)
       return(CACHE_HIT::HIT_CACHE);             // data in cache entry
   }
 
-  if(cdbFH.get(strKey, strValue) == true) {     // not in cache, read from CDB
+  if(d_cdb->get(strKey, strValue) == true) {     // not in cache, read from CDB
     put(strKey, strValue);                      // store in cache
     if(strValue.empty()) {
       return(CACHE_HIT::HIT_CDB_NO_DATA);       // no data in cdb entry

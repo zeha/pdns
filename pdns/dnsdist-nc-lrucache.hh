@@ -32,7 +32,7 @@ private:
   std::list<key_value_pair_t> cacheList;                  // front is most recent use
   std::unordered_map<keyType, list_iterator_t> cacheMap;  // key with ptr to list entry
   size_t d_maxentries;                                    // max entries to allow
-  cdbIO cdbFH;
+  std::unique_ptr<cdbIO> d_cdb;
   void put(const std::string& key, const std::string& value);
   bool get(const std::string& key, std::string &val);
 };
