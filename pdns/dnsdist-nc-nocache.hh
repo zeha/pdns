@@ -23,7 +23,6 @@ public:
    bool  setSize(int iEntries);
 private:
    int iDebug;
-
 };
 
 #endif

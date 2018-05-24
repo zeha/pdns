@@ -1,5 +1,4 @@
-#ifndef LRUCACHE_H
-#define LRUCACHE_H
+#pragma once
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -37,7 +36,6 @@ private:
 class LRUCache : public BaseNamedCache  {
 
 public:
-
   LRUCache(int maxEntries);
   ~LRUCache();
   void setDebug(int debug=0);
@@ -50,7 +48,6 @@ public:
   int  getCache(const std::string strKey, std::string &strValue);
   int  getEntries();
 
-
 private:
   int iMaxEntries;
   cdbIO cdbFH;
@@ -61,5 +58,3 @@ private:
 };
 
 #endif
-
-#endif // LRUCACHE_H

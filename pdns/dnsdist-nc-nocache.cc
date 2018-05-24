@@ -7,7 +7,6 @@ NoCache::NoCache() {
   iDebug = 0;
 }
 
-
 NoCache::~NoCache() {
 }
 
@@ -16,16 +15,13 @@ void NoCache::setDebug(int debug) {
 }
 
 bool NoCache::close() {
-
-    return(true);
+  return(true);
 }
 
 bool NoCache::open(std::string strFileName)
 {
-
   return(true);
 }
-
 
 int NoCache::getErrNum()
 {
@@ -55,8 +51,7 @@ int NoCache::getEntries()
 
 int NoCache::getCache(const std::string strKey, std::string &strValue)
 {
-int iStatus = CACHE_HIT::HIT_NONE;
-
+  int iStatus = CACHE_HIT::HIT_NONE;
   return(iStatus);
 }
 

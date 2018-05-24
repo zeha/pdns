@@ -15,7 +15,6 @@
 #include "dnsdist-nc-nocache.hh"
 
 
-
 /*
    GCA - named cache
     Notes:
@@ -51,7 +50,6 @@
 #ifdef HAVE_NAMEDCACHE
 
 #define DELTA_AVG 1000
-
 
 
 class DNSDistNamedCache
@@ -104,13 +102,10 @@ private:
   int deltaCount;
   time_t tCounterReset;
   struct StopWatch *sw;
-
 };
-
 
 // NamedCache Table
 using namedCaches_t=map<std::string, std::shared_ptr<DNSDistNamedCache>>;
-
 
 extern namedCaches_t g_namedCacheTable;
 

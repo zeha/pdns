@@ -3,9 +3,7 @@
 #endif
 
 #include "config.h"
-
 #include "dolog.hh"
-
 
 #include "dnsdist-nc-lrucache.hh"
 
@@ -178,7 +176,6 @@ bool bStatus = false;
 //  read from cache / cdb - strValue cleared if not written to
 int LRUCache::getCache(const std::string strKey, std::string &strValue)
 {
-
   if(get(strKey, strValue) == true) {           // read from cache
       if(strValue.empty()) {
         return(CACHE_HIT::HIT_CACHE_NO_DATA);   // no data in cache entry
@@ -195,7 +192,5 @@ int LRUCache::getCache(const std::string strKey, std::string &strValue)
   }
   return(CACHE_HIT::HIT_NONE);                  // ret status is 'no hit'
 }
-
-
 
 #endif

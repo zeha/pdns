@@ -71,7 +71,6 @@ bool bStat = false;
 // 'close' object
 bool DNSDistNamedCache::close(void)
 {
-
   return(init(strCacheName, "", 0));       // keep cache name when closing
 }
 
@@ -228,7 +227,7 @@ time_t DNSDistNamedCache::getCounterResetTime()
 
 std::string DNSDistNamedCache::getNamedCacheStatusText()
 {
-std::string strText = "";
+  std::string strText = "";
 
   strText += "Cache name......: " + getCacheName() + "\n";
 
@@ -240,12 +239,7 @@ std::string strText = "";
   strText += "Creation time...: " + (std::string) cTimeBuffer + "\n";
 
   strText += "CDB file........: " + getFileName() + "\n";
-
-  std::string fopened = "no";
-  if (isFileOpen()) {
-    fopened = "yes";
-  }
-  strText += "File opened.....: " + fopened + "\n";
+  strText += "File opened.....: " + std::string((isFileOpen() ? "yes" : "no")) + "\n";
 
   strText += "Error number....: " + std::to_string(getErrNum()) + "\n";
   strText += "Error message...: " + getErrMsg() + "\n";
@@ -265,12 +259,11 @@ std::string strText = "";
   strText += "Cache misses....: " + std::to_string(getCacheMiss()) + "\n";
   strText += "Query per Sec...: " + std::to_string(getQuerySec()) + "\n";
 
-   return strText;
+  return strText;
 }
 
 void DNSDistNamedCache::getNamedCacheStatusTable(std::unordered_map<string, string> &tableResult)
 {
-
   tableResult.insert({"cacheName", getCacheName()});
   tableResult.insert({"file", getFileName()});   // file used
   tableResult.insert({"open", isFileOpen() ? "yes" : "no"});             // file open
@@ -300,11 +293,6 @@ void DNSDistNamedCache::getNamedCacheStatusTable(std::unordered_map<string, stri
 
 }
 
-
-#endif
-
-
-#ifdef HAVE_NAMEDCACHE
 /*
    operations that are affected by multi-threading below.....
         namedCachesTable.find       // read operation
@@ -316,7 +304,6 @@ void DNSDistNamedCache::getNamedCacheStatusTable(std::unordered_map<string, stri
         getNamedCachesStatus        // read operation
 */
 
-
 std::mutex g_nc_table_mutex;        // mutex to prevent r/w named cache table problems
 
 /*
@@ -326,11 +313,8 @@ std::mutex g_nc_table_mutex;        // mutex to prevent r/w named cache table pr
    after restored after with
         g_namedCaches.setState(namedCacheList);
 */
-
-
 std::shared_ptr<DNSDistNamedCache> createNamedCacheIfNotExists(namedCaches_t& namedCacheTable, const string& findCacheName, const int iDebug)
 {
-
   std::lock_guard<std::mutex> guard(g_nc_table_mutex);         // stop for mutex
 
   std::shared_ptr<DNSDistNamedCache> selectedCache;
@@ -338,12 +322,12 @@ std::shared_ptr<DNSDistNamedCache> createNamedCacheIfNotExists(namedCaches_t& na
   if (it != namedCacheTable.end()) {
     selectedCache = it->second;
   } else {
-      if(!findCacheName.empty()) {
-        vinfolog("Creating named cache %s", findCacheName);
-      }
-      selectedCache = std::make_shared<DNSDistNamedCache>(findCacheName, "", 0, iDebug);       // make empty named cache
-      namedCacheTable.insert(std::pair<std::string,std::shared_ptr<DNSDistNamedCache> >(findCacheName, selectedCache));       // insert into table
+    if(!findCacheName.empty()) {
+      vinfolog("Creating named cache %s", findCacheName);
     }
+    selectedCache = std::make_shared<DNSDistNamedCache>(findCacheName, "", 0, iDebug);       // make empty named cache
+    namedCacheTable.insert(std::pair<std::string,std::shared_ptr<DNSDistNamedCache> >(findCacheName, selectedCache));       // insert into table
+  }
 
   return selectedCache;
 }
@@ -355,8 +339,6 @@ std::shared_ptr<DNSDistNamedCache> createNamedCacheIfNotExists(namedCaches_t& na
    after restored after with
         g_namedCaches.setState(namedCacheList);
 */
-
-
 bool deleteNamedCacheEntry(namedCaches_t& namedCachesTable, const string& findCacheName, const int iDebug)
 {
   std::lock_guard<std::mutex> guard(g_nc_table_mutex);         // stop for mutex
@@ -364,7 +346,6 @@ bool deleteNamedCacheEntry(namedCaches_t& namedCachesTable, const string& findCa
   std::shared_ptr<DNSDistNamedCache> selectedCache;
   namedCaches_t::iterator it = namedCachesTable.find(findCacheName);
   if (it != namedCachesTable.end()) {
-
     selectedCache = it->second;
 
     selectedCache->init(findCacheName, "", 0);     // minimize resources
@@ -405,7 +386,6 @@ void DNSDistNamedCache::swap(DNSDistNamedCache* other) {
   other->tCreation          = tCreation;
 }
 
-
 /*
    swapNamedCache()
    return:
@@ -416,7 +396,6 @@ void DNSDistNamedCache::swap(DNSDistNamedCache* other) {
 int swapNamedCacheEntries(namedCaches_t& namedCacheTable, const string& findCacheNameA, const string& findCacheNameB, int iDebug)
 {
   std::lock_guard<std::mutex> guard(g_nc_table_mutex);         // stop for mutex
-
 
   std::shared_ptr<DNSDistNamedCache> selectedCacheA;
   std::shared_ptr<DNSDistNamedCache> selectedCacheB;
@@ -445,12 +424,8 @@ int swapNamedCacheEntries(namedCaches_t& namedCacheTable, const string& findCach
   return 0;
 }
 
-
-
 std::string getAllNamedCacheStatus(namedCaches_t& namedCacheTable, int iDebug)
 {
-
-
    ostringstream ret;
    boost::format fmt("%1$8.8s %|5t|%4$4s %|5t|%5$8s %|5t|%6$8s %|5t|%7$8s %|5t|%8$12s %|5t|%9$12s %|5t|%10$12s %|5t|%11$12s %|5t|%12$12s %|5t|%13%");
    ret << (fmt % "Name" % "Open" % "MaxCache" % "InCache" % "QuerySec" % "HitsCache" % "NoDataCache" % "CdbHits" % "CdbNoData"% " MissCache" % "FileName" ) << endl;
@@ -479,12 +454,9 @@ std::string getAllNamedCacheStatus(namedCaches_t& namedCacheTable, int iDebug)
    return ret.str();
 };
 
-
-
 // Background thread to load cache.......
 void namedCacheLoadThread(std::shared_ptr<DNSDistNamedCache> entryCacheA, const std::string strFileName, int iMaxEntries, int iDebug)
 {
-
   auto start = std::chrono::system_clock::now();
   std::time_t startTime = std::chrono::system_clock::to_time_t(start);
   std::string strStartTime;
@@ -517,13 +489,11 @@ void namedCacheLoadThread(std::shared_ptr<DNSDistNamedCache> entryCacheA, const 
     }
     deleteNamedCacheEntry(g_namedCacheTable,strCacheNameB, iDebug);  // delete temp
   } else {
-      std::stringstream err;
-      err << "Failed to reload named cache " << strFileName << "  -> " << entryCacheB->getErrMsg() << "(" << entryCacheB->getErrNum() << ")" << endl;
-      string outstr = err.str();
-	  errlog(outstr.c_str());
-    }
-
-
+    std::stringstream err;
+    err << "Failed to reload named cache " << strFileName << "  -> " << entryCacheB->getErrMsg() << "(" << entryCacheB->getErrNum() << ")" << endl;
+    string outstr = err.str();
+    errlog(outstr.c_str());
+  }
 
   auto end = std::chrono::system_clock::now();
   std::time_t endTime = std::chrono::system_clock::to_time_t(end);
@@ -532,15 +502,12 @@ void namedCacheLoadThread(std::shared_ptr<DNSDistNamedCache> entryCacheA, const 
 
   auto millSec = std::chrono::duration_cast<std::chrono::milliseconds> (end-start);
   warnlog("Finished loading Cache: %s   Max Entries: %d   Elapsed ms: %d ",  strCacheName.c_str(), entryCacheA->getMaxEntries(), millSec.count());
-
-
 }
-
 
 // Background thread to reload cache.......
 void namedCacheReloadThread(const std::string& strCacheNameA, boost::optional<int> maxEntries)
 {
-int iDebug = 0;
+  int iDebug = 0;
 
   auto start = std::chrono::system_clock::now();
   std::time_t startTime = std::chrono::system_clock::to_time_t(start);
@@ -578,13 +545,11 @@ int iDebug = 0;
     }
     deleteNamedCacheEntry(g_namedCacheTable,strCacheNameB, iDebug); // delete temp
   } else {
-      std::stringstream err;
-      err << "Failed to reload named cache " << strFileNameA << "  -> " << entryCacheB->getErrMsg() << "(" << entryCacheB->getErrNum() << ")" << endl;
-      string outstr = err.str();
-	  errlog(outstr.c_str());
-    }
-
-
+    std::stringstream err;
+    err << "Failed to reload named cache " << strFileNameA << "  -> " << entryCacheB->getErrMsg() << "(" << entryCacheB->getErrNum() << ")" << endl;
+    string outstr = err.str();
+    errlog(outstr.c_str());
+  }
 
   auto end = std::chrono::system_clock::now();
   std::time_t endTime = std::chrono::system_clock::to_time_t(end);
@@ -593,8 +558,6 @@ int iDebug = 0;
 
   auto millSec = std::chrono::duration_cast<std::chrono::milliseconds> (end-start);
   warnlog("Finished reloading Named Cache: %s   Max Entries: %d   Elapsed ms: %d ", strCacheNameA.c_str(), iMaxEntriesA, millSec.count());
-
-
 }
 
 #endif
