@@ -23,6 +23,7 @@
 #include "dnsdist-ecs.hh"
 #include "dnsdist-lua.hh"
 #include "dnsdist-protobuf.hh"
+#include "dnsdist-namedcache.hh"
 
 #include <map>
 #include <fstream>

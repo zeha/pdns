@@ -1,7 +1,10 @@
 #include "dnsdist-namedcache.hh"
 
-
 #ifdef HAVE_NAMEDCACHE
+
+namedCaches_t g_namedCacheTable;
+std::atomic<std::uint16_t> g_namedCacheTempFileCount;
+std::string g_namedCacheTempPrefix = "-4rld";
 
 DNSDistNamedCache::DNSDistNamedCache(const std::string& cacheName, const std::string& fileName, size_t maxEntries, int debug)
 {
