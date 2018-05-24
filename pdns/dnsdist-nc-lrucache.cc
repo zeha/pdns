@@ -6,6 +6,7 @@
 #include "dolog.hh"
 
 #include "dnsdist-nc-lrucache.hh"
+#include "dnsdist-namedcache.hh"
 
 #ifdef HAVE_NAMEDCACHE
 
@@ -20,38 +21,29 @@
 */
 
 
-lruCache::lruCache(int maxEntries)
+// LRCCache object
+// see:  http://cr.yp.to/cdb/reading.html
+LRUCache::LRUCache(const std::string& fileName, int maxEntries) : d_maxentries(maxEntries)
 {
-  iMaxEntries = maxEntries;
-  iDebug = 0;
-}
-
-lruCache::~lruCache()
-{
-  clearLRU();
-}
-
-void lruCache::setDebug(int debug)
-{
-  iDebug = debug;
-}
-
-void lruCache::clearLRU()
-{
-  cacheMap.clear();
-  cacheList.clear();
-  if(iDebug & CACHE_DEBUG::DEBUG_DISP) {
-    warnlog("lruCache::clearLRU() - DEBUG - DEBUG - cleared map & list ......................... \n");
+  bool bStatus = cdbFH.open(fileName);
+  if (!bStatus) {
+    throw std::runtime_error("Opening CDB failed: " + fileName + " Error: " + strerror(errno));
   }
-#ifndef __APPLE__
-  if(iDebug & CACHE_DEBUG::DEBUG_MALLOC_TRIM) {
-    int iStat = malloc_trim(0);
-    warnlog("bindToCDB - Releasing memory to os: %s ", iStat?"Memory Released":"NOT POSSIBLE TO RELEASE MEMORY");
-  }
-#endif
 }
 
-void lruCache::put(const std::string& key, const std::string& value)
+bool LRUCache::get(const std::string& key, std::string &val)
+{
+  auto it = cacheMap.find(key);                         // find entry in map
+  if(it == cacheMap.end()) {
+    return(false);                                      // didn't find
+  } else {                                              // move entry to top of list
+    cacheList.splice(cacheList.begin(), cacheList, it->second);
+    val = it->second->second;                         // return value
+    return(true);
+  }
+}
+
+void LRUCache::put(const std::string& key, const std::string& value)
 {
   auto it = cacheMap.find(key);                         // get old entry in map
   cacheList.push_front(key_value_pair_t(key, value));   // put new entry in front of list
@@ -61,7 +53,7 @@ void lruCache::put(const std::string& key, const std::string& value)
   }
   cacheMap[key] = cacheList.begin();                    // put new entry (front of list) into map
 
-  if(cacheMap.size() > iMaxEntries) {
+  if(cacheMap.size() > d_maxentries) {
     auto last = cacheList.end();                        // too big, shrink
     last--;                                             // get end of list entry
     cacheMap.erase(last->first);                        // remove entry from map
@@ -69,64 +61,14 @@ void lruCache::put(const std::string& key, const std::string& value)
   }
 }
 
-bool lruCache::get(const std::string& key, std::string &val)
+int LRUCache::getMaxEntries()
 {
-  auto it = cacheMap.find(key);                         // find entry in map
-  if(it == cacheMap.end()) {
-    return(false);                                      // didn't find
-  } else {                                              // move entry to top of list
-      cacheList.splice(cacheList.begin(), cacheList, it->second);
-      val = it->second->second;                         // return value
-      return(true);
-    }
-}
-
-size_t lruCache::size()
-{
-  return cacheMap.size();
-}
-
-// LRCCache object
-LRUCache::LRUCache(int maxEntries)
-{
-  ptrCache = new lruCache(0);
-  iDebug = 0;
-}
-
-void LRUCache::setDebug(int debug)
-{
-  iDebug = debug;
-  ptrCache->setDebug(iDebug);
-}
-
-bool LRUCache::init(int capacity)
-{
-  this->iMaxEntries = capacity;
-  if(ptrCache != nullptr) {
-    delete ptrCache;
-  }
-  ptrCache = new lruCache(capacity);
-  return(true);
-}
-
-bool LRUCache::get(const std::string key, std::string &val)
-{
-  return(ptrCache->get(key, val));
-}
-
-void LRUCache::put(const std::string key, const std::string value)
-{
-  ptrCache->put(key, value);
-}
-
-int LRUCache::getSize()
-{
-  return(iMaxEntries);
+  return d_maxentries;
 }
 
 int LRUCache::getEntries()
 {
-  return(ptrCache->size());
+  return cacheMap.size();
 }
 
 int LRUCache::getErrNum()
@@ -141,36 +83,10 @@ std::string LRUCache::getErrMsg()
 
 LRUCache::~LRUCache()
 {
-  close();
-  if(ptrCache != nullptr) {
-    delete ptrCache;
+  bool bStatus = cdbFH.close();
+  if (!bStatus) {
+    warnlog("Closing CDB failed");
   }
-}
-
-// openCDB()
-// see:  http://cr.yp.to/cdb/reading.html
-bool LRUCache::open(std::string strCdbName)
-{
-bool bStatus = false;
-
-  bStatus = cdbFH.open(strCdbName);
-  return(bStatus);
-}
-
-//  close down lru cache & free up resources
-bool LRUCache::close()
-{
-bool bStatus = false;
-
-  bStatus = cdbFH.close();
-  if(ptrCache != nullptr) {
-    delete ptrCache;
-  }
-  ptrCache = new lruCache(0);
-  ptrCache->setDebug(iDebug);
-  iMaxEntries = 0;
-  iMaxEntries = 0;
-  return(bStatus);
 }
 
 //  read from cache / cdb - strValue cleared if not written to

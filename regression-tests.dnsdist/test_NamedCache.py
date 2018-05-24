@@ -43,6 +43,7 @@ class TestNamedCache(DNSDistTest):
 
     luasmn = newSuffixMatchNode()
     luasmn:add(newDNSName('lua.protobuf.tests.powerdns.com.'))
+    nc = newNamedCache('test.cdb', 100000)
 
     function alterProtobufQuery(dq, protobuf)	
       if luasmn:check(dq.qname) then
@@ -150,28 +151,12 @@ class TestNamedCache(DNSDistTest):
 
     function checkNamedCache(dq)                                -- before dnsdist lookup check for named cache match
 
-      local statTable = xxx:getStats()
-      if statTable['cacheName'] ~= "xxx" then
-         io.stderr:write(string.format("******* checkNamedCache() - xxx stat table entry cacheName mismatch: %%s \\n", statTable['cacheName']))
-         return DNSAction.Nxdomain, ""                          --  this will stop testing....
-      end
+      local statTable = nc:getStats()
 
-      local statTable2 = yyy:getStats()
-      if statTable2['cacheName'] ~= "yyy" then
-         io.stderr:write(string.format("******* checkNamedCache() - yyy stat table entry cacheName mismatch: %%s \\n", statTable2['cacheName']))
-         return DNSAction.Nxdomain, ""                          --  this will stop testing....
-      end
+      local result  = nc:lookupQWild(dq, 2)	        -- compare all the various methods of looking up named cache entries
 
-
-      local result  = getNamedCache("xxx"):lookupQWild(dq, 2)	        -- compare all the various methods of looking up named cache entries
-      local result2 = yyy:lookupQWild(dq, 2)	
-
-      if result.found ~= result2.found then
+      if not result.found then
         io.stderr:write(string.format("$$$$$$$$$ checkNamedCache() -> BAD mismatch - bindToCDB & loadFromCDB - found: %%s   2: %%s \\n", result.found, result2.found ))	
-        return DNSAction.Nxdomain, ""                           --  this will stop testing....
-      end
-      if result.data ~= result2.data then
-        io.stderr:write(string.format("$$$$$$$$$ checkNamedCache() -> BAD mismatch - bindToCDB & loadFromCDB - data: %%s   2: %%s \\n", result.data, result2.data ))	
         return DNSAction.Nxdomain, ""                           --  this will stop testing....
       end
 
@@ -215,13 +200,6 @@ class TestNamedCache(DNSDistTest):
       end
       return DNSAction.None, ""			                -- allow rule processing to continue
     end
-
-
-    xxx = getNamedCache("xxx")        -- load test cdb into 'loadFrom' named cache 
-    xxx:loadFromCDB("test.cdb")
-
-    yyy = getNamedCache("yyy")
-    yyy:bindToCDB("test.cdb")          -- load test cdb into 'bindTo' named cache
 
     addLuaAction(AllRule(), checkNamedCache)		      -- check if named cache hit, if so return nxdomain and send protobuf
 

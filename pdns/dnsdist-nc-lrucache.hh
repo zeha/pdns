@@ -7,54 +7,34 @@
 #include <unordered_map>
 
 #include "config.h"
+#include "misc.hh"
 
 #include "dnsdist-nc-cdbio.hh"
-#include "dnsdist-nc-basecache.hh"
 
 #ifdef HAVE_NAMEDCACHE
 
-class lruCache {
-public:
+class LRUCache  {
   typedef typename std::string keyType;
   typedef typename std::string valueType;
   typedef typename std::pair<keyType, valueType> key_value_pair_t;
   typedef typename std::list<key_value_pair_t>::iterator list_iterator_t;
-  lruCache(int maxEntries);
-  ~lruCache();
-  void setDebug(int debug);
-  void clearLRU();
-  void put(const std::string& key, const std::string& value);
-  bool get(const std::string& key, std::string &val);
-  size_t size();
-private:
-  std::list<key_value_pair_t> cacheList;                  // front is most recent use
-  std::unordered_map<keyType, list_iterator_t> cacheMap;  // key with ptr to list entry
-  size_t iMaxEntries;                                     // max entries to allow
-  int iDebug;
-};
-
-class LRUCache : public BaseNamedCache  {
 
 public:
-  LRUCache(int maxEntries);
+  LRUCache(const std::string& fileName, int maxEntries);
   ~LRUCache();
-  void setDebug(int debug=0);
-  bool init(int capacity);
-  int  getSize();
+  int  getMaxEntries();
   int  getErrNum(void);
   std::string getErrMsg(void);
-  bool open(std::string strFileName);
-  bool close();
   int  getCache(const std::string strKey, std::string &strValue);
   int  getEntries();
 
 private:
-  int iMaxEntries;
+  std::list<key_value_pair_t> cacheList;                  // front is most recent use
+  std::unordered_map<keyType, list_iterator_t> cacheMap;  // key with ptr to list entry
+  size_t d_maxentries;                                    // max entries to allow
   cdbIO cdbFH;
-  lruCache *ptrCache;
-  void put(const std::string key, const std::string value);
-  bool get(const std::string key, std::string &val);
-  int iDebug;
+  void put(const std::string& key, const std::string& value);
+  bool get(const std::string& key, std::string &val);
 };
 
 #endif

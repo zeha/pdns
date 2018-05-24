@@ -10,20 +10,15 @@
 #include "config.h"
 #include "gettime.hh"
 
-#include "dnsdist-nc-basecache.hh"
 #include "dnsdist-nc-lrucache.hh"
-#include "dnsdist-nc-nocache.hh"
-
 
 /*
    GCA - named cache
     Notes:
 
-        DNSDistNamedCache(filename, maxEntries, iDebug)
+        DNSDistNamedCache(filename, maxEntries)
                 fileName - entire path name to cdb file.
                 maxEntries - maximum amount of LRU entries to store in cache
-                iDebug - > 0 debugging modes.
-                         & CACHE_DEBUG::DEBUG_DISP
 
         getFileName() - get current cdb file used by the object
 
@@ -51,21 +46,19 @@
 
 #define DELTA_AVG 1000
 
+enum CACHE_HIT {HIT_NONE, HIT_CDB, HIT_CACHE, HIT_CDB_NO_DATA, HIT_CACHE_NO_DATA};
 
 class DNSDistNamedCache
 {
 public:
-  DNSDistNamedCache(const std::string& cacheName, const std::string& fileName, size_t maxEntries, int iDebug=0);
+  DNSDistNamedCache(const std::string& fileName, size_t maxEntries);
   ~DNSDistNamedCache();
-  bool init(const std::string& cacheName, const std::string& fileName, size_t maxEntries);
-  bool close(void);
+  void close();
+  void reopen();
   uint64_t getMaxEntries();
-  std::string   getCacheName();
-  void setCacheName(const std::string cacheName);
   std::string   getFileName();
   int getErrNum();
   std::string   getErrMsg();
-  int getDebugFlags();
   uint64_t getCacheEntries();
   int      getQuerySec();
   uint64_t getCacheHits();
@@ -73,26 +66,19 @@ public:
   uint64_t getCdbHits();
   uint64_t getCdbHitsNoData();
   uint64_t getCacheMiss();
-  void     resetCounters();
-  bool     isFileOpen();
   int      lookup(const std::string& strQuery, std::string& strData);
-  bool     reset();
   time_t getCreationTime();
   time_t getCounterResetTime();
   std::string getNamedCacheStatusText();
   void getNamedCacheStatusTable(std::unordered_map<string, string> &tableResult);
-
-  void swap(DNSDistNamedCache* other);
+  void     resetCounters();
 
 private:
-  int iDebug;
-  std::string strFileName;
-  size_t uMaxEntries;
-  bool bOpened;
-  time_t tCreation;
+  std::string d_filename;
+  size_t d_maxentries;
+  time_t d_tcreated;
 
-  BaseNamedCache *bnc;
-  std::string strCacheName;
+  std::unique_ptr<LRUCache> bnc{nullptr};
   std::atomic<uint64_t> cacheHits{0};
   std::atomic<uint64_t> cacheHitsNoData{0};
   std::atomic<uint64_t> cdbHits{0};
@@ -100,28 +86,10 @@ private:
   std::atomic<uint64_t> cacheMiss{0};
   std::atomic<double>   deltaLookup[DELTA_AVG];
   int deltaCount;
-  time_t tCounterReset;
-  struct StopWatch *sw;
+  time_t d_tcountersreset;
+  std::unique_ptr<struct StopWatch> d_sw{nullptr};
 };
 
-// NamedCache Table
-using namedCaches_t=map<std::string, std::shared_ptr<DNSDistNamedCache>>;
-
-extern namedCaches_t g_namedCacheTable;
-
-extern std::atomic<std::uint16_t> g_namedCacheTempFileCount;
-
-extern std::string g_namedCacheTempPrefix;
-
-std::shared_ptr<DNSDistNamedCache> createNamedCacheIfNotExists(namedCaches_t& namedCaches, const string& poolName, const int iDebug=0);
-
-extern bool deleteNamedCacheEntry(namedCaches_t& namedCachesTable, const string& findCacheName, const int iDebug=0);
-
-extern int  swapNamedCacheEntries(namedCaches_t& namedCachesTable, const string& findCacheNameA, const string& findCacheNameB, const int iDebug=0);
-
-extern void namedCacheLoadThread(std::shared_ptr<DNSDistNamedCache> entryCacheA, const std::string strFileName, int iMaxEntries, const int iDebug=0);
-
-extern void namedCacheReloadThread(const std::string& strCacheNameA, boost::optional<int> maxEntries);
-extern std::string getAllNamedCacheStatus(namedCaches_t& namedCachesTable, int iDebug = 0);
+extern std::string getAllNamedCacheStatus();
 
 #endif
