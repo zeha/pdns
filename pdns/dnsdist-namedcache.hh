@@ -84,14 +84,16 @@ public:
   std::string getNamedCacheStatusText();
   void getNamedCacheStatusTable(std::unordered_map<string, string> &tableResult);
 
+  void swap(DNSDistNamedCache* other);
+
+private:
   int iDebug;
   std::string strFileName;
   size_t uMaxEntries;
-  BaseNamedCache *bnc;
   bool bOpened;
   time_t tCreation;
 
-private:
+  BaseNamedCache *bnc;
   std::string strCacheName;
   std::atomic<uint64_t> cacheHits{0};
   std::atomic<uint64_t> cacheHitsNoData{0};

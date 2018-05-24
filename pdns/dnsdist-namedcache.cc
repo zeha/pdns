@@ -379,33 +379,30 @@ bool deleteNamedCacheEntry(namedCaches_t& namedCachesTable, const string& findCa
 }
 
 
-
 // leave cache name alone while swapping other data
-void swapSelectedElements(std::shared_ptr<DNSDistNamedCache> dataA, std::shared_ptr<DNSDistNamedCache> dataB)
-{
+void DNSDistNamedCache::swap(DNSDistNamedCache* other) {
+  int iDebug               = this->iDebug;
+  std::string strFileName  = this->strFileName;
+  size_t uMaxEntries       = this->uMaxEntries;
+  BaseNamedCache *bnc      = this->bnc;
+  bool bOpened             = this->bOpened;
+  time_t tCreation         = this->tCreation;
 
-  int iDebug               = dataA->iDebug;
-  std::string strFileName  = dataA->strFileName;
-  size_t uMaxEntries       = dataA->uMaxEntries;
-  BaseNamedCache *bnc      = dataA->bnc;
-  bool bOpened             = dataA->bOpened;
-  time_t tCreation         = dataA->tCreation;
+  this->iDebug             = other->iDebug;
+  this->strFileName        = other->strFileName;
+  this->uMaxEntries        = other->uMaxEntries;
+  this->bnc                = other->bnc;
+  this->bOpened            = other->bOpened;
+  this->resetCounters();
+  this->tCreation          = other->tCreation;
 
-  dataA->iDebug             = dataB->iDebug;
-  dataA->strFileName        = dataB->strFileName;
-  dataA->uMaxEntries        = dataB->uMaxEntries;
-  dataA->bnc                = dataB->bnc;
-  dataA->bOpened            = dataB->bOpened;
-  dataA->resetCounters();
-  dataA->tCreation          = dataB->tCreation;
-
-  dataB->iDebug             = iDebug;
-  dataB->strFileName        = strFileName;
-  dataB->uMaxEntries        = uMaxEntries;
-  dataB->bnc                = bnc;
-  dataB->bOpened            = bOpened;
-  dataB->resetCounters();
-  dataB->tCreation          = tCreation;
+  other->iDebug             = iDebug;
+  other->strFileName        = strFileName;
+  other->uMaxEntries        = uMaxEntries;
+  other->bnc                = bnc;
+  other->bOpened            = bOpened;
+  other->resetCounters();
+  other->tCreation          = tCreation;
 }
 
 
@@ -443,7 +440,7 @@ int swapNamedCacheEntries(namedCaches_t& namedCacheTable, const string& findCach
     return -2;
   }
 
-  swapSelectedElements(selectedCacheA, selectedCacheB);            // swap data of 'A' & 'B'
+  selectedCacheA->swap(selectedCacheB.get());            // swap data of 'A' & 'B'
 
   return 0;
 }
