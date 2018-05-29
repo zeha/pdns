@@ -425,7 +425,6 @@ const std::vector<ConsoleKeyword> g_consoleKeywords{
   { "showConsoleACL", true, "", "show our current console ACL set" },
   { "showDNSCryptBinds", true, "", "display the currently configured DNSCrypt binds" },
   { "showDynBlocks", true, "", "show dynamic blocks in force" },
-  { "showNamedCaches", true, "", "show named caches"},
   { "showPools", true, "", "show the available pools" },
   { "showPoolServerPolicy", true, "pool", "show server selection policy for this pool" },
   { "showResponseLatency", true, "", "show a plot of the response time latency distribution" },
