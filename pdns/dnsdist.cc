@@ -105,19 +105,6 @@ vector<ClientState *> g_frontends;
 GlobalStateHolder<pools_t> g_pools;
 size_t g_udpVectorSize{1};
 
-
-// GCA- NamedCache
-#ifdef HAVE_NAMEDCACHE
-
-namedCaches_t g_namedCacheTable;
-
-std::atomic<std::uint16_t> g_namedCacheTempFileCount;
-
-std::string g_namedCacheTempPrefix = "-4rld";
-
-#endif
-
-
 bool g_snmpEnabled{false};
 bool g_snmpTrapsEnabled{false};
 DNSDistSNMPAgent* g_snmpAgent{nullptr};
