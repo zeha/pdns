@@ -84,8 +84,8 @@ std::string LRUCache::getErrMsg()
 //  read from cache / cdb - strValue cleared if not written to
 int LRUCache::lookup(const std::string strKey, std::string &result)
 {
-  // read from cache
-  if (get(strKey, result)) {
+  // read from cache (if cache enabled)
+  if (d_maxentries > 0 && get(strKey, result)) {
     if(result.empty()) {
       return(CACHE_HIT::HIT_CACHE_NO_DATA);   // no data in cache entry
     }
@@ -94,7 +94,9 @@ int LRUCache::lookup(const std::string strKey, std::string &result)
 
   // not in cache, read from CDB
   if (d_cdb->get(strKey, result)) {
-    put(strKey, result);                      // store in cache
+    if (d_maxentries > 0) {
+      put(strKey, result);                      // store in cache
+    }
     if(result.empty()) {
       return(CACHE_HIT::HIT_CDB_NO_DATA);       // no data in cdb entry
     }
