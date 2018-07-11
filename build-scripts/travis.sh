@@ -370,6 +370,7 @@ install_dnsdist() {
   run "sudo apt-get -qq update"
   run "sudo apt-get -qq --no-install-recommends install \
     libcdb-dev \
+    tinycdb \
     snmpd \
     libsnmp-dev \
     libfstrm-dev"
