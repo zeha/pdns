@@ -1,30 +1,32 @@
 #!/usr/bin/env python
-import Queue
 import threading
 import socket
 import struct
 import sys
 import time
-from dnsdisttests import DNSDistTest
-from cdblib import CDB, CDBWriter
+import os
+import subprocess
+from dnsdisttests import DNSDistTest, Queue
 
 import dns
 import dnsmessage_pb2
 
-import os
-
 
 def create_cdb():                                               # create test cdb file
-    m = CDBWriter('test.cdb')
+    d = {}
+    d['1fuks551ut9x8d1gs9u801k0v9g7.net'] = 'rpz-test-1'
+    d['1funvaz1momy1vruganraqwii7.org'] = 'rpz-test-1'
+    d['1fuyfus16emwaj4b253a15gbh9c.org'] = 'rpz-test-1'
+    d['azurewebsites.net'] = 'rpz-test-1'
+    d['zziemjfgdu.nightmichael.top'] = 'rpz-test-1'
+    d['lua.protobuf.tests.powerdns.com'] = 'rpz-test-1'
 
-    m['1fuks551ut9x8d1gs9u801k0v9g7.net'] = 'rpz-test-1'
-    m['1funvaz1momy1vruganraqwii7.org'] = 'rpz-test-1'
-    m['1fuyfus16emwaj4b253a15gbh9c.org'] = 'rpz-test-1'
-    m['azurewebsites.net'] = 'rpz-test-1'
-    m['zziemjfgdu.nightmichael.top'] = 'rpz-test-1'
-    m['lua.protobuf.tests.powerdns.com'] = 'rpz-test-1'
-
-    m.close()
+    with open('test.cdb.in', 'w') as fio:
+        for k, v in d.items():
+            fio.write('+%d,%d:%s->%s\n' % (len(k), len(v), k, v))
+        fio.write('\n')
+    cdb = subprocess.Popen(["cdb", "-c", "test.cdb", "test.cdb.in"], close_fds=True)
+    cdb.wait()
 
 
 def delete_cdb():                                               # delete test cdb file
@@ -34,7 +36,7 @@ def delete_cdb():                                               # delete test cd
 class TestNamedCache(DNSDistTest):
     create_cdb()                                                # create test cdb file first
     _protobufServerPort = 4342
-    _protobufQueue = Queue.Queue()
+    _protobufQueue = Queue()
     _protobufCounter = 0
     _config_params = ['_testServerPort', '_protobufServerPort']
     _config_template = """					-- start of the lua code for dnsdist conf file
@@ -43,10 +45,11 @@ class TestNamedCache(DNSDistTest):
 
     luasmn = newSuffixMatchNode()
     luasmn:add(newDNSName('lua.protobuf.tests.powerdns.com.'))
+    nc = newNamedCache('test.cdb', 100000)
 
-    function alterProtobufQuery(dq, protobuf)	
+    function alterProtobufQuery(dq, protobuf)
       if luasmn:check(dq.qname) then
-        requestor = newCA(dq.remoteaddr:toString())		
+        requestor = newCA(dq.remoteaddr:toString())
         if requestor:isIPv4() then
           requestor:truncate(24)
         else
@@ -66,7 +69,7 @@ class TestNamedCache(DNSDistTest):
 
         protobuf:setTag("Query,123")				-- add another tag entry in protobuf
 
-        protobuf:setTag("found,yes")			        -- tag as yes response in protobuf	
+        protobuf:setTag("found,yes")			        -- tag as yes response in protobuf
 
         protobuf:setResponseCode(dnsdist.NXDOMAIN)        	-- set protobuf response code to be NXDOMAIN
 
@@ -81,7 +84,7 @@ class TestNamedCache(DNSDistTest):
         protobuf:setBytes(65)					-- set the size of the query to confirm in checkProtobufBase
       else
 
-        requestor = newCA(dq.remoteaddr:toString())		
+        requestor = newCA(dq.remoteaddr:toString())
         if requestor:isIPv4() then
           requestor:truncate(24)
         else
@@ -89,7 +92,7 @@ class TestNamedCache(DNSDistTest):
         end
         protobuf:setRequestor(requestor)
 
-        local tableTags = {}                                    
+        local tableTags = {}
         table.insert(tableTags, "TestLabel1,TestData1")
         table.insert(tableTags, "TestLabel2,TestData2")
 
@@ -116,7 +119,7 @@ class TestNamedCache(DNSDistTest):
 
     function alterProtobufResponse(dq, protobuf)                -- after dnsdist lookup alter protobuf message
       if luasmn:check(dq.qname) then
-        requestor = newCA(dq.remoteaddr:toString())		
+        requestor = newCA(dq.remoteaddr:toString())
         if requestor:isIPv4() then
           requestor:truncate(24)
         else
@@ -131,67 +134,51 @@ class TestNamedCache(DNSDistTest):
         protobuf:setTag("Response,456")
         protobuf:setTag("found,no")				-- tag as no response in protobuf
       else
-        requestor = newCA(dq.remoteaddr:toString())		
+        requestor = newCA(dq.remoteaddr:toString())
         if requestor:isIPv4() then
           requestor:truncate(24)
         else
           requestor:truncate(56)
         end
         protobuf:setRequestor(requestor)
-        local tableTags = {} 					
+        local tableTags = {}
         table.insert(tableTags, "TestLabel1,TestData1")
         table.insert(tableTags, "TestLabel2,TestData2")
         protobuf:setTagArray(tableTags)
         protobuf:setTag('TestLabel3,TestData3')
         protobuf:setTag("Response,456")
-        protobuf:setTag("found,no")		                -- tag as no response in protobuf		
+        protobuf:setTag("found,no")		                -- tag as no response in protobuf
       end
     end
 
     function checkNamedCache(dq)                                -- before dnsdist lookup check for named cache match
 
-      local statTable = xxx:getStats()
-      if statTable['cacheName'] ~= "xxx" then
-         io.stderr:write(string.format("******* checkNamedCache() - xxx stat table entry cacheName mismatch: %%s \\n", statTable['cacheName']))
-         return DNSAction.Nxdomain, ""                          --  this will stop testing....
-      end
+      local statTable = nc:getStats()
 
-      local statTable2 = yyy:getStats()
-      if statTable2['cacheName'] ~= "yyy" then
-         io.stderr:write(string.format("******* checkNamedCache() - yyy stat table entry cacheName mismatch: %%s \\n", statTable2['cacheName']))
-         return DNSAction.Nxdomain, ""                          --  this will stop testing....
-      end
+      local result  = nc:lookupQWild(dq, 2)	        -- compare all the various methods of looking up named cache entries
 
-
-      local result  = getNamedCache("xxx"):lookupQWild(dq, 2)	        -- compare all the various methods of looking up named cache entries
-      local result2 = yyy:lookupQWild(dq, 2)	
-
-      if result.found ~= result2.found then
-        io.stderr:write(string.format("$$$$$$$$$ checkNamedCache() -> BAD mismatch - bindToCDB & loadFromCDB - found: %%s   2: %%s \\n", result.found, result2.found ))	
-        return DNSAction.Nxdomain, ""                           --  this will stop testing....
-      end
-      if result.data ~= result2.data then
-        io.stderr:write(string.format("$$$$$$$$$ checkNamedCache() -> BAD mismatch - bindToCDB & loadFromCDB - data: %%s   2: %%s \\n", result.data, result2.data ))	
+      if not result.found then
+        io.stderr:write(string.format("$$$$$$$$$ checkNamedCache() -> BAD mismatch - found: %%s\\n", result.found))
         return DNSAction.Nxdomain, ""                           --  this will stop testing....
       end
 
       if result.found then
          m = newDNSDistProtobufMessage(dq)                      -- matching entry was found in cdb
-     
+
          local tableTags = dq:getTagArray()
          local tablePB = {}
          for k, v in pairs( tableTags) do
            table.insert(tablePB, k .. ", " .. v)
          end
-     
+
          local strReqName = dq.qname:toString()
          blobData = '\127' .. '\000' .. '\000' .. '\001'
-     
+
          m:setProtobufResponseType()
          m:addResponseRR(strReqName, 1, 1, 456, blobData)
          m:setResponseCode(dnsdist.NXDOMAIN)
 
-         requestor = newCA(dq.remoteaddr:toString())		
+         requestor = newCA(dq.remoteaddr:toString())
          if requestor:isIPv4() then
           requestor:truncate(24)
          else
@@ -199,7 +186,7 @@ class TestNamedCache(DNSDistTest):
          end
          m:setRequestor(requestor)
 
-         local tableTags = {}                                    
+         local tableTags = {}
          table.insert(tableTags, "TestLabel1,TestData1")
          table.insert(tableTags, "TestLabel2,TestData2")
 
@@ -207,7 +194,7 @@ class TestNamedCache(DNSDistTest):
          m:setTag('TestLabel3,TestData3')
          m:setTag("Query,123")
          m:setTag("found,yes")                                  -- tag as yes response in protobuf
- 
+
          remoteLog(rl, m)                                       -- send out protobuf
 
          return DNSAction.Spoof, "1.2.3.4"			-- spoof test, only 1 protobuf msg, no dns query
@@ -215,13 +202,6 @@ class TestNamedCache(DNSDistTest):
       end
       return DNSAction.None, ""			                -- allow rule processing to continue
     end
-
-
-    xxx = getNamedCache("xxx")        -- load test cdb into 'loadFrom' named cache 
-    xxx:loadFromCDB("test.cdb")
-
-    yyy = getNamedCache("yyy")
-    yyy:bindToCDB("test.cdb")          -- load test cdb into 'bindTo' named cache
 
     addLuaAction(AllRule(), checkNamedCache)		      -- check if named cache hit, if so return nxdomain and send protobuf
 
@@ -344,13 +324,9 @@ class TestNamedCache(DNSDistTest):
         self.assertEquals(record.ttl, rttl)
         self.assertTrue(record.HasField('rdata'))
 
-# start of python execution 
-
-
-    
-    def testLuaNamedCacheMatch(self):                                   # test named cache lookup for 'match'
+    def testLuaNamedCacheMatch(self):
         """
-        Protobuf: Check that the Lua callback rewrote the initiator
+        named cache lookup:
         """
 
         name = 'lua.protobuf.tests.powerdns.com.'			# dns name to lookup and match.....
@@ -363,105 +339,39 @@ class TestNamedCache(DNSDistTest):
                                     '127.0.0.1')
         response.answer.append(rrset)
 
-
-        (receivedQuery, receivedResponse) = self.sendUDPQuery(query, response) # send out the UDP query
-
+        (_, receivedResponse) = self.sendUDPQuery(query, response) # send out the UDP query
         self.assertTrue(receivedResponse)
-
-        
-        time.sleep(1)								# let the protobuf messages the time to get there
-
-        									# check the protobuf message corresponding to the UDP query
+        time.sleep(1)  # give protobuf messages time to arrive
         msg = self.getFirstProtobufMessage()
-
         self.checkProtobufQueryConvertedToResponse(msg, dnsmessage_pb2.PBDNSMessage.UDP, response, '127.0.0.0')
+        self.checkProtobufTags(msg.response.tags, ["TestLabel1,TestData1", "TestLabel2,TestData2", "TestLabel3,TestData3", "Query,123", "found,yes"])
 
-        self.checkProtobufTags(msg.response.tags, [ u"TestLabel1,TestData1", u"TestLabel2,TestData2", u"TestLabel3,TestData3", u"Query,123", u"found,yes"])  
-
-
-        (receivedQuery, receivedResponse) = self.sendTCPQuery(query, response)
+        (_, receivedResponse) = self.sendTCPQuery(query, response)
         self.assertTrue(receivedResponse)
-        									# let the protobuf messages the time to get there
-        time.sleep(1)
-
-        									# check the protobuf message corresponding to the TCP query
+        time.sleep(1)  # give protobuf messages time to arrive
         msg = self.getFirstProtobufMessage()
-
         self.checkProtobufQueryConvertedToResponse(msg, dnsmessage_pb2.PBDNSMessage.TCP, response, '127.0.0.0')
+        self.checkProtobufTags(msg.response.tags, ["TestLabel1,TestData1", "TestLabel2,TestData2", "TestLabel3,TestData3", "Query,123", "found,yes"])
 
-        self.checkProtobufTags(msg.response.tags, [ u"TestLabel1,TestData1", u"TestLabel2,TestData2", u"TestLabel3,TestData3", u"Query,123", u"found,yes"])
-
-
-
-     
-    def testLuaNamedCacheNoMatch(self):                                 # test named cache lookup for 'no match'
+    def testLuaNamedCacheNoMatch(self):
         """
-        Protobuf: Check that the Lua callback rewrote the initiator
+        named cache lookup: no match
         """
 
         name = 'xxxxlua.protobuf.tests.powerdns.com.'			# dns name to lookup and match.....
         query = dns.message.make_query(name, 'A', 'IN')
         response = dns.message.make_response(query)
-        rrset = dns.rrset.from_text(name,
-                                    3600,
-                                    dns.rdataclass.IN,
-                                    dns.rdatatype.A,
-                                    '127.0.0.1')
-        response.answer.append(rrset)
+        response.set_rcode(dns.rcode.NXDOMAIN)
 
-
-        (receivedQuery, receivedResponse) = self.sendUDPQuery(query, response)  # send out the UDP query
-
+        (_, receivedResponse) = self.sendUDPQuery(query, response)  # send out the UDP query
         self.assertTrue(receivedResponse)
+        response.id = receivedResponse.id
+        self.assertEqual(receivedResponse, response)
 
-        time.sleep(1)								# let the protobuf messages the time to get there
-
-        msg = self.getFirstProtobufMessage()                                    # protobuf message before dnsdist lookup
-
-        self.checkProtobufQueryConvertedToResponse(msg, dnsmessage_pb2.PBDNSMessage.UDP, response, '127.0.0.0')	             
-
-        self.checkProtobufTags(msg.response.tags, [ u"TestLabel1,TestData1", u"TestLabel2,TestData2", u"TestLabel3,TestData3", u"Query,123", u"found,no"])   # query
-
-
-        msg = self.getFirstProtobufMessage()                                    # protobuf message after dnsdist lookup
-
- 
-        self.checkProtobufResponse(msg, dnsmessage_pb2.PBDNSMessage.UDP, response, '127.0.0.0')
-
-        self.checkProtobufTags(msg.response.tags, [ u"TestLabel1,TestData1", u"TestLabel2,TestData2", u"TestLabel3,TestData3", u"Response,456", u"found,no"])   # response
-
-        self.assertEquals(len(msg.response.rrs), 1)
-        for rr in msg.response.rrs:
-            self.checkProtobufResponseRecord(rr, dns.rdataclass.IN, dns.rdatatype.A, name, 3600)
-            self.assertEquals(socket.inet_ntop(socket.AF_INET, rr.rdata), '127.0.0.1')
-
-
-
-        (receivedQuery, receivedResponse) = self.sendTCPQuery(query, response)  # send out the TCP query
-
+        (_, receivedResponse) = self.sendTCPQuery(query, response)  # send out the TCP query
         self.assertTrue(receivedResponse)
-        									
-        time.sleep(1)                                                           # let the protobuf messages the time to get there
-
-        msg = self.getFirstProtobufMessage()                                    # protobuf message before dnsdist lookup
-
-        self.checkProtobufQueryConvertedToResponse(msg, dnsmessage_pb2.PBDNSMessage.TCP, response, '127.0.0.0')               
-
-        self.checkProtobufTags(msg.response.tags, [ u"TestLabel1,TestData1", u"TestLabel2,TestData2", u"TestLabel3,TestData3", u"Query,123", u"found,no"])
-
-
-        msg = self.getFirstProtobufMessage()                                    # protobuf message after dnsdist lookup
-
- 
-        self.checkProtobufResponse(msg, dnsmessage_pb2.PBDNSMessage.TCP, response, '127.0.0.0')
-
-        self.checkProtobufTags(msg.response.tags, [ u"TestLabel1,TestData1", u"TestLabel2,TestData2", u"TestLabel3,TestData3", u"Response,456", u"found,no"])   # response
-
-        self.assertEquals(len(msg.response.rrs), 1)
-        for rr in msg.response.rrs:
-            self.checkProtobufResponseRecord(rr, dns.rdataclass.IN, dns.rdatatype.A, name, 3600)
-            self.assertEquals(socket.inet_ntop(socket.AF_INET, rr.rdata), '127.0.0.1')
-
+        response.id = receivedResponse.id
+        self.assertEqual(receivedResponse, response)
 
     @classmethod
     def tearDownClass(cls):                                               # delete the test cdb file when finished
