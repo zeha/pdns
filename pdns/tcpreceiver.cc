@@ -1124,7 +1124,8 @@ int TCPNameserver::doIXFR(shared_ptr<DNSPacket> q, int outsock)
     }
   }
 
-  DNSSECKeeper dk;
+  UeberBackend db;
+  DNSSECKeeper dk(&db);
   NSEC3PARAMRecordContent ns3pr;
   bool narrow;
 
@@ -1142,7 +1143,6 @@ int TCPNameserver::doIXFR(shared_ptr<DNSPacket> q, int outsock)
 
   DNSName target = q->qdomain;
 
-  UeberBackend db;
   if(!db.getSOAUncached(target, sd)) {
     g_log<<Logger::Error<<"IXFR of domain '"<<target<<"' failed: not authoritative in second instance"<<endl;
     outpacket->setRcode(RCode::NotAuth);
