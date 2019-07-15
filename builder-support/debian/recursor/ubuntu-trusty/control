@@ -2,7 +2,8 @@ Source: pdns-recursor
 Section: net
 Priority: extra
 Standards-Version: 4.1.2
-Maintainer: PowerDNS.COM BV <powerdns.support@powerdns.com>
+Maintainer: PowerDNS.COM BV <powerdns.support.sales@powerdns.com>
+Origin: PowerDNS
 Build-Depends: debhelper (>= 9~),
                dh-autoreconf,
                libboost-all-dev,

@@ -2,7 +2,7 @@ Source: pdns
 Section: net
 Priority: extra
 Standards-Version: 4.1.1
-Maintainer: PowerDNS Autobuilder <powerdns.support@powerdns.com>
+Maintainer: PowerDNS.COM BV <powerdns.support.sales@powerdns.com>
 Origin: PowerDNS
 Build-Depends: autoconf,
                automake,
