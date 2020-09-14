@@ -131,6 +131,8 @@ public:
   void reload();
   bool searchRecords(const string &pattern, int maxResults, vector<DNSResourceRecord>& result);
   bool searchComments(const string &pattern, int maxResults, vector<Comment>& result);
+
+  void updateDomainCache();
 private:
   handle d_handle;
   vector<DNSZoneRecord> d_answers;
@@ -158,5 +160,4 @@ private:
   int cacheHas(const Question &q, vector<DNSZoneRecord> &rrs);
   void addNegCache(const Question &q);
   void addCache(const Question &q, vector<DNSZoneRecord>&& rrs);
-  
 };

@@ -16,6 +16,7 @@
 #include <boost/multi_index/key_extractors.hpp>
 
 #include "arguments.hh"
+#include "auth-domaincache.hh"
 #include "auth-querycache.hh"
 #include "ueberbackend.hh"
 
@@ -332,10 +333,13 @@ public:
 
 struct UeberBackendSetupArgFixture {
   UeberBackendSetupArgFixture() {
+    extern AuthDomainCache g_domainCache;
     extern AuthQueryCache QC;
     ::arg().set("query-cache-ttl")="0";
     ::arg().set("negquery-cache-ttl")="0";
     QC.cleanup();
+    ::arg().set("cache-domain-list")="off";
+    g_domainCache.clear();
     BackendMakers().clear();
     SimpleBackend::s_zones.clear();
     SimpleBackend::s_metadata.clear();
@@ -344,6 +348,7 @@ struct UeberBackendSetupArgFixture {
 
 static void testWithoutThenWithCache(std::function<void(UeberBackend& ub)> func)
 {
+  extern AuthDomainCache g_domainCache;
   extern AuthQueryCache QC;
 
   {
@@ -351,6 +356,8 @@ static void testWithoutThenWithCache(std::function<void(UeberBackend& ub)> func)
     ::arg().set("query-cache-ttl")="0";
     ::arg().set("negquery-cache-ttl")="0";
     QC.cleanup();
+    ::arg().set("cache-domain-list")="off";
+    g_domainCache.clear();
 
     UeberBackend ub;
     func(ub);
@@ -361,8 +368,11 @@ static void testWithoutThenWithCache(std::function<void(UeberBackend& ub)> func)
     ::arg().set("query-cache-ttl")="20";
     ::arg().set("negquery-cache-ttl")="60";
     QC.cleanup();
+    ::arg().set("cache-domain-list")="on";
+    g_domainCache.clear();
 
     UeberBackend ub;
+    ub.updateDomainCache();
     /* a first time to fill the cache */
     func(ub);
     /* a second time to make sure every call has been tried with the cache filled */
