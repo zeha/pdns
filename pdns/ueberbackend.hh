@@ -97,9 +97,9 @@ public:
 
   /** Determines if we are authoritative for a zone, and at what level */
   bool getAuth(const DNSName &target, const QType &qtype, SOAData* sd, bool cachedOk=true);
-  bool getSOA(const DNSName &domain, SOAData &sd);
+  bool getSOA(const DNSName &domain, SOAData &sd, const int zoneId=-1);
   /** Load SOA info from backends, ignoring the cache.*/
-  bool getSOAUncached(const DNSName &domain, SOAData &sd);
+  bool getSOAUncached(const DNSName &domain, SOAData &sd, const int zoneId=-1);
   bool get(DNSZoneRecord &r);
   void getAllDomains(vector<DomainInfo> *domains, bool include_disabled=false);
 
@@ -131,6 +131,8 @@ public:
   void reload();
   bool searchRecords(const string &pattern, int maxResults, vector<DNSResourceRecord>& result);
   bool searchComments(const string &pattern, int maxResults, vector<Comment>& result);
+
+  void updateDomainCache();
 private:
   handle d_handle;
   vector<DNSZoneRecord> d_answers;
@@ -158,5 +160,4 @@ private:
   int cacheHas(const Question &q, vector<DNSZoneRecord> &rrs);
   void addNegCache(const Question &q);
   void addCache(const Question &q, vector<DNSZoneRecord>&& rrs);
-  
 };
