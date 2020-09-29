@@ -1649,15 +1649,13 @@ static void apiServerZones(HttpRequest* req, HttpResponse* resp) {
 
     if (!have_soa && zonekind != DomainInfo::Slave) {
       // synthesize a SOA record so the zone "really" exists
-      string soa = (boost::format("%s %s %ul")
-        % ::arg()["default-soa-name"]
-        % (::arg().isEmpty("default-soa-mail") ? (DNSName("hostmaster.") + zonename).toString() : ::arg()["default-soa-mail"])
+      string soa = (boost::format("%s %s %lu 10800 3600 604800 3600")
+        % zonename.toStringRootDot()
+        % (DNSName("hostmaster.") + zonename).toStringNoDot()
         % document["serial"].int_value()
       ).str();
-      SOAData sd;
-      fillSOAData(soa, sd);  // fills out default values for us
       autorr.qtype = QType::SOA;
-      autorr.content = makeSOAContent(sd)->getZoneRepresentation(true);
+      autorr.content = soa;
       increaseSOARecord(autorr, soa_edit_api_kind, soa_edit_kind);
       new_records.push_back(autorr);
     }

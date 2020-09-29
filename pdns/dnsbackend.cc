@@ -258,18 +258,6 @@ bool DNSBackend::getSOA(const DNSName &domain, SOAData &sd)
   if(!hits)
     return false;
   sd.qname = domain;
-  if(!sd.nameserver.countLabels())
-    sd.nameserver= DNSName(arg()["default-soa-name"]);
-
-  if(!sd.hostmaster.countLabels()) {
-    if (!arg().isEmpty("default-soa-mail")) {
-      sd.hostmaster= DNSName(arg()["default-soa-mail"]);
-      // attodot(sd.hostmaster); FIXME400
-    }
-    else
-      sd.hostmaster=DNSName("hostmaster")+domain;
-  }
-
   sd.db=this;
   return true;
 }
@@ -285,37 +273,12 @@ bool DNSBackend::get(DNSZoneRecord& dzr)
   dzr.scopeMask = rr.scopeMask;
   if(rr.qtype.getCode() == QType::TXT && !rr.content.empty() && rr.content[0]!='"')
     rr.content = "\""+ rr.content + "\"";
-  if(rr.qtype.getCode() == QType::SOA) {
-    try {
-      dzr.dr = DNSRecord(rr);
-    } catch(...) {
-      vector<string> parts;
-      stringtok(parts, rr.content, " \t");
-      if(parts.size() < 1)
-        rr.content = arg()["default-soa-name"];
-      if(parts.size() < 2)
-        rr.content += " " +arg()["default-soa-mail"];
-      if(parts.size() < 3)
-        rr.content += " 0";
-      if(parts.size() < 4)
-        rr.content += " " + ::arg()["soa-refresh-default"];
-      if(parts.size() < 5)
-        rr.content += " " + ::arg()["soa-retry-default"];
-      if(parts.size() < 6)
-        rr.content += " " + ::arg()["soa-expire-default"];
-      if(parts.size() < 7)
-        rr.content += " " + ::arg()["soa-minimum-ttl"];
-      dzr.dr = DNSRecord(rr);
-    }
+  try {
+    dzr.dr = DNSRecord(rr);
   }
-  else {
-    try {
-      dzr.dr = DNSRecord(rr);
-    }
-    catch(...) {
-      while(this->get(rr));
-      throw;
-    }
+  catch(...) {
+    while(this->get(rr));
+    throw;
   }
   return true;
 }
@@ -360,7 +323,7 @@ std::shared_ptr<DNSRecordContent> makeSOAContent(const SOAData& sd)
 void fillSOAData(const string &content, SOAData &data)
 {
   // content consists of fields separated by spaces:
-  //  nameservername hostmaster serial-number [refresh [retry [expire [ minimum] ] ] ]
+  //  nameservername hostmaster serial-number refresh retry expire minimum
 
   // fill out data with some plausible defaults:
   // 10800 3600 604800 3600
@@ -371,28 +334,15 @@ void fillSOAData(const string &content, SOAData &data)
 
   //  cout<<"'"<<content<<"'"<<endl;
 
-  if(pleft)
-    data.nameserver=DNSName(parts[0]);
-
-  if(pleft>1) 
-    data.hostmaster=DNSName(attodot(parts[1])); // ahu@ds9a.nl -> ahu.ds9a.nl, piet.puk@ds9a.nl -> piet\.puk.ds9a.nl
-
-  try {
-    data.serial = pleft > 2 ? pdns_stou(parts[2]) : 0;
-
-    data.refresh = pleft > 3 ? pdns_stou(parts[3])
-      : ::arg().asNum("soa-refresh-default");
-
-    data.retry = pleft > 4 ? pdns_stou(parts[4].c_str())
-      : ::arg().asNum("soa-retry-default");
-
-    data.expire = pleft > 5 ? pdns_stou(parts[5].c_str())
-      : ::arg().asNum("soa-expire-default");
-
-    data.minimum = pleft > 6 ? pdns_stou(parts[6].c_str())
-      : ::arg().asNum("soa-minimum-ttl");
+  if (pleft < 7) {
+    throw PDNSException("Incomplete SOA data: " + content);
   }
-  catch(const std::out_of_range& oor) {
-    throw PDNSException("Out of range exception parsing "+content);
-  }
+
+  data.nameserver=DNSName(parts[0]);
+  data.hostmaster=DNSName(attodot(parts[1])); // ahu@ds9a.nl -> ahu.ds9a.nl, piet.puk@ds9a.nl -> piet\.puk.ds9a.nl
+  data.serial = pdns_stou(parts[2]);
+  data.refresh = pdns_stou(parts[3]);
+  data.retry = pdns_stou(parts[4].c_str());
+  data.expire = pdns_stou(parts[5].c_str());
+  data.minimum = pdns_stou(parts[6].c_str());
 }

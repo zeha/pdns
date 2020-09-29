@@ -1404,9 +1404,14 @@ void GSQLBackend::getAllDomains(vector<DomainInfo> *domains, bool include_disabl
         }
       }
 
-      SOAData sd;
-      fillSOAData(row[2], sd);
-      di.serial = sd.serial;
+      try {
+        SOAData sd;
+        fillSOAData(row[2], sd);
+        di.serial = sd.serial;
+      } catch(...) {
+        di.serial = 0;  // might be a SLAVE zone with no data yet
+      }
+
       try {
         di.notified_serial = pdns_stou(row[5]);
         di.last_check = pdns_stou(row[6]);

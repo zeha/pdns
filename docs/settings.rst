@@ -435,6 +435,8 @@ Overrides :ref:`setting-default-soa-edit`
 
 .. deprecated:: 4.2.0
   This setting has been deprecated and will be removed in 4.4.0
+.. versionchanged:: 4.4.0
+  This setting has been removed
 
 Mail address to insert in the SOA record if none set in the backend.
 
@@ -448,6 +450,8 @@ Mail address to insert in the SOA record if none set in the backend.
 
 .. deprecated:: 4.2.0
   This setting has been deprecated and will be removed in 4.4.0
+.. versionchanged:: 4.4.0
+  This setting has been removed
 
 Name to insert in the SOA record if none set in the backend.
 
@@ -1546,6 +1550,8 @@ See :ref:`metadata-slave-renotify` to set this per-zone.
 
 .. deprecated:: 4.2.0
   This setting has been deprecated and will be removed in 4.4.0
+.. versionchanged:: 4.4.0
+  This setting has been removed
 
 Default :ref:`types-soa` expire.
 
@@ -1559,6 +1565,8 @@ Default :ref:`types-soa` expire.
 
 .. deprecated:: 4.2.0
   This setting has been deprecated and will be removed in 4.4.0
+.. versionchanged:: 4.4.0
+  This setting has been removed
 
 Default :ref:`types-soa` minimum ttl.
 
@@ -1572,6 +1580,8 @@ Default :ref:`types-soa` minimum ttl.
 
 .. deprecated:: 4.2.0
   This setting has been deprecated and will be removed in 4.4.0
+.. versionchanged:: 4.4.0
+  This setting has been removed
 
 Default :ref:`types-soa` refresh.
 
@@ -1585,6 +1595,8 @@ Default :ref:`types-soa` refresh.
 
 .. deprecated:: 4.2.0
   This setting has been deprecated and will be removed in 4.4.0
+.. versionchanged:: 4.4.0
+  This setting has been removed
 
 Default :ref:`types-soa` retry.
 
