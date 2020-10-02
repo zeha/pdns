@@ -27,9 +27,10 @@
 #include "logger.hh"
 #include "statbag.hh"
 #include "arguments.hh"
+#include "cachecleaner.hh"
 extern StatBag S;
 
-AuthDomainCache::AuthDomainCache(size_t mapsCount): d_mapsCount(mapsCount)
+AuthDomainCache::AuthDomainCache(size_t mapsCount): d_maps(mapsCount)
 {
   S.declare("domain-cache-hit", "Number of hits on the domain cache");
   S.declare("domain-cache-miss", "Number of misses on the domain cache");
@@ -45,7 +46,11 @@ AuthDomainCache::AuthDomainCache(size_t mapsCount): d_mapsCount(mapsCount)
 AuthDomainCache::~AuthDomainCache()
 {
   try {
-    WriteLock l(d_mut);
+    vector<WriteLock> locks;
+    for(auto& mc : d_maps) {
+      locks.push_back(WriteLock(mc.d_mut));
+    }
+    locks.clear();
   }
   catch(...) {
   }
@@ -53,19 +58,23 @@ AuthDomainCache::~AuthDomainCache()
 
 bool AuthDomainCache::getEntry(const DNSName &domain, int& backendIndex)
 {
-  ReadLock rl(&d_mut);
-
   auto& mc = getMap(domain);
-  auto iter = mc.d_map.find(domain);
-
-  if (iter == mc.d_map.end()) {
-    (*d_statnummiss)++;
-    return false;
-  } else {
-    (*d_statnumhit)++;
-    backendIndex = iter->second.backendIndex;
-    return true;
+  bool found = false;
+  {
+    ReadLock rl(mc.d_mut);
+    auto iter = mc.d_map.find(domain);
+    if (iter != mc.d_map.end()) {
+      found = true;
+      backendIndex = iter->second.backendIndex;
+    }
   }
+
+  if (found) {
+    (*d_statnumhit)++;
+  } else {
+    (*d_statnummiss)++;
+  }
+  return found;
 }
 
 bool AuthDomainCache::isEnabled() const
@@ -75,9 +84,7 @@ bool AuthDomainCache::isEnabled() const
 
 void AuthDomainCache::clear()
 {
-  WriteLock l(&d_mut);
-  vector<MapCombo> new_maps(d_mapsCount);
-  d_maps = std::move(new_maps);
+  purgeLockedCollectionsVector(d_maps);
 }
 
 void AuthDomainCache::replace(const vector<tuple<DNSName, int>> &domain_indices)
@@ -86,25 +93,31 @@ void AuthDomainCache::replace(const vector<tuple<DNSName, int>> &domain_indices)
     return;
 
   size_t count = domain_indices.size();
-  vector<MapCombo> new_maps(d_mapsCount);
+  vector<MapCombo> newMaps(d_maps.size());
   time_t now = time(nullptr);
 
   // TBD: check if we should reserve() maps
+  DTime dt;
+  dt.set();
 
   // build new maps
   for(const tuple<DNSName, int>& tup: domain_indices) {
     const DNSName& domain = tup.get<0>();
     CacheValue val;
     val.backendIndex = tup.get<1>();
-    auto& mc = new_maps[getMapIndex(domain)];
+    auto& mc = newMaps[getMapIndex(domain)];
     mc.d_map.emplace(domain, val);
   }
+  cerr<<"AuthDomainCache took " << dt.udiff() << " to create new maps"<<endl;
 
-  // replace all maps in one go
+  dt.set();
+  for(size_t mapIndex = 0; mapIndex < d_maps.size(); mapIndex++)
   {
-    WriteLock l(&d_mut);
-    d_maps = std::move(new_maps);
+    auto& mc = d_maps[mapIndex];
+    WriteLock l(mc.d_mut);
+    mc.d_map = newMaps[mapIndex].d_map;  // XXX check this
   }
+  cerr<<"AuthDomainCache took " << dt.udiff() << " to replace cache entries"<<endl;
 
   d_statnumentries->store(count);
   d_ttd = now + d_ttl;

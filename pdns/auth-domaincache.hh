@@ -69,15 +69,14 @@ private:
     MapCombo(const MapCombo &) = delete;
     MapCombo & operator=(const MapCombo &) = delete;
 
+    ReadWriteLock d_mut;
     cmap_t d_map;
   };
 
-  ReadWriteLock d_mut;
   vector<MapCombo> d_maps;
-  size_t d_mapsCount;
   size_t getMapIndex(const DNSName& domain)
   {
-    return domain.hash() % d_mapsCount;
+    return domain.hash() % d_maps.size();
   }
   MapCombo& getMap(const DNSName& qname)
   {
