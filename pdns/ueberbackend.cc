@@ -112,12 +112,17 @@ bool UeberBackend::getDomainInfo(const DNSName &domain, DomainInfo &di, bool get
 
 bool UeberBackend::createDomain(const DNSName &domain, const DomainInfo::DomainKind kind, const vector<ComboAddress> &masters, const string &account)
 {
+  bool success = false;
   for(DNSBackend* mydb :  backends) {
     if(mydb->createDomain(domain, kind, masters, account)) {
-      return true;
+      success = true;
+      break;
     }
   }
-  return false;
+  if (success) {
+    updateDomainCache();
+  }
+  return success;
 }
 
 bool UeberBackend::doesDNSSEC()

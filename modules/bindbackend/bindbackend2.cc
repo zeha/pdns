@@ -700,6 +700,9 @@ string Bind2Backend::DLAddDomainHandler(const vector<string>&parts, Utility::pid
 
   safePutBBDomainInfo(bbd);
 
+  UeberBackend B;
+  B.updateDomainCache();  // make new domain visible
+
   g_log<<Logger::Warning<<"Zone "<<domainname<< " loaded"<<endl;
   return "Loaded zone " + domainname.toLogString() + " from " + filename;
 }
