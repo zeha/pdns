@@ -35,6 +35,8 @@ aee
 aeefcf
 aef
 afdf
+afdlength
+afe
 Afek
 afl
 afnic
@@ -362,6 +364,7 @@ cppcheck
 createdb
 createslavedomain
 Cremers
+criteo
 CRn
 cron
 Cruft
@@ -637,6 +640,7 @@ execfile
 Exort
 externalrefs
 extrahead
+Exx
 Ezb
 Ezbu
 ezdns
@@ -662,6 +666,7 @@ fcgi
 fcontext
 fd
 fda
+fdc
 fdce
 fdd
 fdde
@@ -773,6 +778,7 @@ gmysqlbackend
 gnutls
 godbc
 godbcbackend
+Godwottery
 goodmatch
 google
 googleapis
@@ -813,6 +819,7 @@ hardcoded
 hardcoding
 hardlink
 Harker
+Hausberger
 headbgcolor
 headerlink
 headfont
@@ -951,6 +958,7 @@ Jeroen
 jessie
 jj
 Joaqu
+jonathaneen
 Jong
 Jorn
 journalctl
@@ -983,6 +991,7 @@ keyfile
 keygen
 keyname
 keypair
+keypairgen
 keyroll
 keysearch
 keysize
@@ -1186,6 +1195,7 @@ minbody
 mindex
 MINFO
 minipatch
+Mischan
 misconfigured
 mjt
 mkuchar
@@ -1470,8 +1480,10 @@ Poelov
 pointsize
 polarssl
 policyactions
+policyevent
 policykinds
 policyname
+policytypes
 pollmplexer
 Ponomarev
 poolers
@@ -1500,6 +1512,7 @@ presignedness
 PRId
 primetime
 princ
+prioritization
 privatekey
 privs
 PRNG
@@ -1872,6 +1885,7 @@ stutiredboy
 stylesheet
 subdomain
 subkey
+submitters
 subnetmask
 sudo
 suffixmatchtree
@@ -1881,9 +1895,11 @@ supernotification
 supersecretpassword
 superslave
 superslaving
+supervacuus
 supervisord
 Surfnet
 SUSE
+SVCB
 swapcontext
 swe
 swoga
@@ -1958,8 +1974,10 @@ toc
 toctree
 todo
 toint
+tokenuser
 tolower
 Tolstov
+Toosarani
 Toshifumi
 tostring
 Travaille

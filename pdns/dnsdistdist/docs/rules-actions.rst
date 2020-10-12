@@ -826,11 +826,11 @@ These ``DNSRule``\ s be one of the following items:
   :param bool name: The name of the tag that has to be set
   :param bool value: If set, the value the tag has to be set to. Default is unset
 
-.. function:: TCPRule([tcp])
+.. function:: TCPRule(tcp)
 
   Matches question received over TCP if ``tcp`` is true, over UDP otherwise.
 
-  :param bool tcp: Match TCP traffic. Default is true.
+  :param bool tcp: Match TCP traffic if true, UDP traffic if false.
 
 .. function:: TrailingDataRule()
 
@@ -1326,6 +1326,8 @@ The following actions exist.
     addAction(AndRule({QNameRule('raw-srv.powerdns.com.'), QTypeRule(DNSQType.SRV)}), SpoofRawAction("\000\000\000\000\255\255\003srv\008powerdns\003com\000", { aa=true, ttl=3600 }))
     -- select reverse queries for '127.0.0.1' and answer with 'localhost'
     addAction(AndRule({QNameRule('1.0.0.127.in-addr.arpa.'), QTypeRule(DNSQType.PTR)}), SpoofRawAction("\009localhost\000"))
+
+  :func:`DNSName:toDNSString` is convenient for converting names to wire format for passing to ``SpoofRawAction``.
 
   :param string rawAnswer: The raw record data
   :param table options: A table with key: value pairs with options.

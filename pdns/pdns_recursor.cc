@@ -130,8 +130,8 @@ static thread_local uint64_t t_frameStreamServersGeneration;
 #endif /* HAVE_FSTRM */
 
 thread_local std::unique_ptr<MT_t> MT; // the big MTasker
-std::unique_ptr<MemRecursorCache> s_RC;
-
+std::unique_ptr<MemRecursorCache> g_recCache;
+std::unique_ptr<NegCache> g_negCache;
 
 thread_local std::unique_ptr<RecursorPacketCache> t_packetCache;
 thread_local FDMultiplexer* t_fdm{nullptr};
@@ -345,8 +345,6 @@ struct DNSComboWriter {
   unsigned int d_tag{0};
   uint32_t d_qhash{0};
   uint32_t d_ttlCap{std::numeric_limits<uint32_t>::max()};
-  uint16_t d_ecsBegin{0};
-  uint16_t d_ecsEnd{0};
   bool d_variable{false};
   bool d_ecsFound{false};
   bool d_ecsParsed{false};
@@ -678,7 +676,7 @@ int asendto(const char *data, size_t len, int flags,
 
 // -1 is error, 0 is timeout, 1 is success
 int arecvfrom(std::string& packet, int flags, const ComboAddress& fromaddr, size_t *d_len,
-              uint16_t id, const DNSName& domain, uint16_t qtype, int fd, struct timeval* now)
+              uint16_t id, const DNSName& domain, uint16_t qtype, int fd, const struct timeval* now)
 {
   static optional<unsigned int> nearMissLimit;
   if(!nearMissLimit)
@@ -879,6 +877,79 @@ static bool addRecordToPacket(DNSPacketWriter& pw, const DNSRecord& rec, uint32_
   }
 
   return true;
+}
+
+enum class PolicyResult : uint8_t { NoAction, HaveAnswer, Drop };
+
+static PolicyResult handlePolicyHit(const DNSFilterEngine::Policy& appliedPolicy, const std::unique_ptr<DNSComboWriter>& dc, SyncRes& sr, int& res, vector<DNSRecord>& ret, DNSPacketWriter& pw)
+{
+  /* don't account truncate actions for TCP queries, since they are not applied */
+  if (appliedPolicy.d_kind != DNSFilterEngine::PolicyKind::Truncate || !dc->d_tcp) {
+    ++g_stats.policyResults[appliedPolicy.d_kind];
+  }
+
+  if (sr.doLog() &&  appliedPolicy.d_type != DNSFilterEngine::PolicyType::None) {
+    g_log << Logger::Warning << dc->d_mdp.d_qname << "|" << QType(dc->d_mdp.d_qtype).getName() << appliedPolicy.getLogString() << endl;
+  }
+
+  switch (appliedPolicy.d_kind) {
+
+  case DNSFilterEngine::PolicyKind::NoAction:
+      return PolicyResult::NoAction;
+
+  case DNSFilterEngine::PolicyKind::Drop:
+    ++g_stats.policyDrops;
+    return PolicyResult::Drop;
+
+  case DNSFilterEngine::PolicyKind::NXDOMAIN:
+    ret.clear();
+    res = RCode::NXDomain;
+    return PolicyResult::HaveAnswer;
+
+  case DNSFilterEngine::PolicyKind::NODATA:
+    ret.clear();
+    res = RCode::NoError;
+    return PolicyResult::HaveAnswer;
+
+  case DNSFilterEngine::PolicyKind::Truncate:
+    if (!dc->d_tcp) {
+      ret.clear();
+      res = RCode::NoError;
+      pw.getHeader()->tc = 1;
+      return PolicyResult::HaveAnswer;
+    }
+    return PolicyResult::NoAction;
+
+  case DNSFilterEngine::PolicyKind::Custom:
+    res = RCode::NoError;
+    {
+      auto spoofed = appliedPolicy.getCustomRecords(dc->d_mdp.d_qname, dc->d_mdp.d_qtype);
+      for (auto& dr : spoofed) {
+        ret.push_back(dr);
+        try {
+          handleRPZCustom(dr, QType(dc->d_mdp.d_qtype), sr, res, ret);
+        }
+        catch (const ImmediateServFailException& e) {
+          if (g_logCommonErrors) {
+            g_log << Logger::Notice << "Sending SERVFAIL to " << dc->getRemote() << " during resolve of the custom filter policy '" << appliedPolicy.getName() << "' while resolving '"<<dc->d_mdp.d_qname<<"' because: "<<e.reason<<endl;
+          }
+          res = RCode::ServFail;
+          break;
+        }
+        catch (const PolicyHitException& e) {
+          if (g_logCommonErrors) {
+            g_log << Logger::Notice << "Sending SERVFAIL to " << dc->getRemote() << " during resolve of the custom filter policy '" << appliedPolicy.getName() << "' while resolving '" << dc->d_mdp.d_qname << "' because another RPZ policy was hit" << endl;
+          }
+          res = RCode::ServFail;
+          break;
+        }
+      }
+
+      return PolicyResult::HaveAnswer;
+    }
+  }
+
+  return PolicyResult::NoAction;
 }
 
 #ifdef HAVE_PROTOBUF
@@ -1194,75 +1265,6 @@ int getFakePTRRecords(const DNSName& qname, vector<DNSRecord>& ret)
   return rcode;
 }
 
-enum class PolicyResult : uint8_t { NoAction, HaveAnswer, Drop };
-
-static PolicyResult handlePolicyHit(const DNSFilterEngine::Policy& appliedPolicy, const std::unique_ptr<DNSComboWriter>& dc, SyncRes& sr, int& res, vector<DNSRecord>& ret, DNSPacketWriter& pw)
-{
-  /* don't account truncate actions for TCP queries, since they are not applied */
-  if (appliedPolicy.d_kind != DNSFilterEngine::PolicyKind::Truncate || !dc->d_tcp) {
-    ++g_stats.policyResults[appliedPolicy.d_kind];
-  }
-
-  switch (appliedPolicy.d_kind) {
-
-  case DNSFilterEngine::PolicyKind::NoAction:
-      return PolicyResult::NoAction;
-
-  case DNSFilterEngine::PolicyKind::Drop:
-    ++g_stats.policyDrops;
-    return PolicyResult::Drop;
-
-  case DNSFilterEngine::PolicyKind::NXDOMAIN:
-    ret.clear();
-    res = RCode::NXDomain;
-    return PolicyResult::HaveAnswer;
-
-  case DNSFilterEngine::PolicyKind::NODATA:
-    ret.clear();
-    res = RCode::NoError;
-    return PolicyResult::HaveAnswer;
-
-  case DNSFilterEngine::PolicyKind::Truncate:
-    if (!dc->d_tcp) {
-      ret.clear();
-      res = RCode::NoError;
-      pw.getHeader()->tc = 1;
-      return PolicyResult::HaveAnswer;
-    }
-    return PolicyResult::NoAction;
-
-  case DNSFilterEngine::PolicyKind::Custom:
-    ret.clear();
-    res = RCode::NoError;
-    {
-      auto spoofed = appliedPolicy.getCustomRecords(dc->d_mdp.d_qname, dc->d_mdp.d_qtype);
-      for (auto& dr : spoofed) {
-        ret.push_back(dr);
-        try {
-          handleRPZCustom(dr, QType(dc->d_mdp.d_qtype), sr, res, ret);
-        }
-        catch (const ImmediateServFailException& e) {
-          if (g_logCommonErrors) {
-            g_log << Logger::Notice << "Sending SERVFAIL to " << dc->getRemote() << " during resolve of the custom filter policy '" << appliedPolicy.getName() << "' while resolving '"<<dc->d_mdp.d_qname<<"' because: "<<e.reason<<endl;
-          }
-          res = RCode::ServFail;
-          break;
-        }
-        catch (const PolicyHitException& e) {
-          if (g_logCommonErrors) {
-            g_log << Logger::Notice << "Sending SERVFAIL to " << dc->getRemote() << " during resolve of the custom filter policy '" << appliedPolicy.getName() << "' while resolving '"<<dc->d_mdp.d_qname<<"' because another RPZ policy was hit"<<endl;
-          }
-          res = RCode::ServFail;
-          break;
-        }
-      }
-    }
-    return PolicyResult::HaveAnswer;
-  }
-
-  return PolicyResult::NoAction;
-}
-
 static void startDoResolve(void *p)
 {
   auto dc=std::unique_ptr<DNSComboWriter>(reinterpret_cast<DNSComboWriter*>(p));
@@ -1394,6 +1396,7 @@ static void startDoResolve(void *p)
     sr.setFrameStreamServers(t_frameStreamServers);
 #endif
     sr.setQuerySource(dc->d_remote, g_useIncomingECS && !dc->d_ednssubnet.source.empty() ? boost::optional<const EDNSSubnetOpts&>(dc->d_ednssubnet) : boost::none);
+    sr.setQueryReceivedOverTCP(dc->d_tcp);
 
     bool tracedQuery=false; // we could consider letting Lua know about this too
     bool shouldNotValidate = false;
@@ -1452,19 +1455,40 @@ static void startDoResolve(void *p)
       t_pdl->prerpz(dq, res);
     }
 
-    // Check if the query has a policy attached to it
-    if (wantsRPZ && (appliedPolicy.d_type == DNSFilterEngine::PolicyType::None || appliedPolicy.d_kind == DNSFilterEngine::PolicyKind::NoAction)) {
-      if (luaconfsLocal->dfe.getQueryPolicy(dc->d_mdp.d_qname, dc->d_source, sr.d_discardedPolicies, appliedPolicy)) {
+    // Check if the client has a policy attached to it
+    if (wantsRPZ && !appliedPolicy.wasHit()) {
+
+      if (luaconfsLocal->dfe.getClientPolicy(dc->d_source, sr.d_discardedPolicies, appliedPolicy)) {
         mergePolicyTags(dc->d_policyTags, appliedPolicy.getTags());
       }
     }
 
-    // If we are doing RPZ and a policy was matched, it normally takes precedence over an answer from gettag.
-    // So process the gettag_ffi answer only if no RPZ action was matched or the policy indicates gettag should
-    // have precedence.
-    if (!wantsRPZ || !appliedPolicy.policyOverridesGettag() || appliedPolicy.d_type == DNSFilterEngine::PolicyType::None) {
-      if (dc->d_rcode != boost::none) {
-        /* we have a response ready to go, most likely from gettag_ffi */
+    /* If we already have an answer generated from gettag_ffi, let's see if the filtering policies
+       should be applied to it */
+    if (dc->d_rcode != boost::none) {
+
+      bool policyOverride = false;
+      /* Unless we already matched on the client IP, time to check the qname.
+         We normally check it in beginResolve() but it will be bypassed since we already have an answer */
+      if (wantsRPZ && appliedPolicy.policyOverridesGettag()) {
+        if (appliedPolicy.d_type != DNSFilterEngine::PolicyType::None) {
+          // Client IP already matched
+        }
+        else {
+          // no match on the client IP, check the qname
+          if (luaconfsLocal->dfe.getQueryPolicy(dc->d_mdp.d_qname, sr.d_discardedPolicies, appliedPolicy)) {
+            // got a match
+            mergePolicyTags(dc->d_policyTags, appliedPolicy.getTags());
+          }
+        }
+
+        if (appliedPolicy.wasHit()) {
+          policyOverride = true;
+        }
+      }
+
+      if (policyOverride) {
+        /* No RPZ or gettag overrides it anyway */
         ret = std::move(dc->d_records);
         res = *dc->d_rcode;
         if (res == RCode::NoError && dc->d_followCNAMERecords) {
@@ -1483,17 +1507,25 @@ static void startDoResolve(void *p)
       }
 
       sr.setWantsRPZ(wantsRPZ);
+
       if (wantsRPZ && appliedPolicy.d_kind != DNSFilterEngine::PolicyKind::NoAction) {
-        auto policyResult = handlePolicyHit(appliedPolicy, dc, sr, res, ret, pw);
-        if (policyResult == PolicyResult::HaveAnswer) {
-          goto haveAnswer;
+
+        if (t_pdl && t_pdl->policyHitEventFilter(dc->d_remote, dc->d_mdp.d_qname, QType(dc->d_mdp.d_qtype), dc->d_tcp, appliedPolicy, dc->d_policyTags, sr.d_discardedPolicies)) {
+          /* reset to no match */
+          appliedPolicy = DNSFilterEngine::Policy();
         }
-        else if (policyResult == PolicyResult::Drop) {
-          return;
+        else {
+          auto policyResult = handlePolicyHit(appliedPolicy, dc, sr, res, ret, pw);
+          if (policyResult == PolicyResult::HaveAnswer) {
+            goto haveAnswer;
+          }
+          else if (policyResult == PolicyResult::Drop) {
+            return;
+          }
         }
       }
 
-      // Query got not handled for QNAME Policy reasons, now actually go out to find an answer
+      // Query did not get handled for Client IP or QNAME Policy reasons, now actually go out to find an answer
       try {
         sr.d_appliedPolicy = appliedPolicy;
         sr.d_policyTags = std::move(dc->d_policyTags);
@@ -1502,16 +1534,28 @@ static void startDoResolve(void *p)
           sr.d_routingTag = dc->d_routingTag;
         }
 
+        ret.clear(); // policy might have filled it with custom records but we decided not to use them
         res = sr.beginResolve(dc->d_mdp.d_qname, QType(dc->d_mdp.d_qtype), dc->d_mdp.d_qclass, ret);
         shouldNotValidate = sr.wasOutOfBand();
       }
-      catch(const ImmediateServFailException &e) {
+      catch (const ImmediateQueryDropException& e) {
+        // XXX We need to export a protobuf message (and do a NOD lookup) if requested!
+        g_stats.policyDrops++;
+        g_log<<Logger::Debug<<"Dropping query because of a filtering policy "<<makeLoginfo(dc)<<endl;
+        return;
+      }
+      catch (const ImmediateServFailException &e) {
         if(g_logCommonErrors) {
           g_log<<Logger::Notice<<"Sending SERVFAIL to "<<dc->getRemote()<<" during resolve of '"<<dc->d_mdp.d_qname<<"' because: "<<e.reason<<endl;
         }
         res = RCode::ServFail;
       }
-      catch(const PolicyHitException& e) {
+      catch (const SendTruncatedAnswerException& e) {
+        ret.clear();
+        res = RCode::NoError;
+        pw.getHeader()->tc = 1;
+      }
+      catch (const PolicyHitException& e) {
         res = -2;
       }
       dq.validationState = sr.getValidationState();
@@ -1529,12 +1573,6 @@ static void startDoResolve(void *p)
         }
         else if (policyResult == PolicyResult::Drop) {
           return;
-        }
-      }
-
-      if (wantsRPZ && (appliedPolicy.d_type == DNSFilterEngine::PolicyType::None || appliedPolicy.d_kind == DNSFilterEngine::PolicyKind::NoAction)) {
-        if (luaconfsLocal->dfe.getPostPolicy(ret, sr.d_discardedPolicies, appliedPolicy)) {
-          mergePolicyTags(dc->d_policyTags, appliedPolicy.getTags());
         }
       }
 
@@ -1567,23 +1605,9 @@ static void startDoResolve(void *p)
           shouldNotValidate = true;
         }
       }
-
-      if (wantsRPZ) { //XXX This block is repeated, see above
-
-        auto policyResult = handlePolicyHit(appliedPolicy, dc, sr, res, ret, pw);
-        if (policyResult == PolicyResult::HaveAnswer) {
-          goto haveAnswer;
-        }
-        else if (policyResult == PolicyResult::Drop) {
-          return;
-        }
-      }
     }
+
   haveAnswer:;
-    if(res == PolicyDecision::DROP) {
-      g_stats.policyDrops++;
-      return;
-    }
     if(tracedQuery || res == -1 || res == RCode::ServFail || pw.getHeader()->rcode == RCode::ServFail)
     { 
       string trace(sr.getTrace());
@@ -1756,6 +1780,8 @@ static void startDoResolve(void *p)
       if (!appliedPolicy.getName().empty()) {
         pbMessage->setAppliedPolicy(appliedPolicy.getName());
         pbMessage->setAppliedPolicyType(appliedPolicy.d_type);
+        pbMessage->setAppliedPolicyTrigger(appliedPolicy.d_trigger);
+        pbMessage->setAppliedPolicyHit(appliedPolicy.d_hit);
       }
       pbMessage->setPolicyTags(dc->d_policyTags);
       if (g_useKernelTimestamp && dc->d_kernelTimestamp.tv_sec) {
@@ -1819,8 +1845,6 @@ static void startDoResolve(void *p)
                                             pw.getHeader()->rcode == RCode::ServFail ? SyncRes::s_packetcacheservfailttl :
                                             min(minTTL,SyncRes::s_packetcachettl),
                                             dq.validationState,
-                                            dc->d_ecsBegin,
-                                            dc->d_ecsEnd,
                                             std::move(pbMessage));
       }
       //      else cerr<<"Not putting in packet cache: "<<sr.wasVariable()<<endl;
@@ -1886,11 +1910,15 @@ static void startDoResolve(void *p)
             ttd.tv_sec += g_tcpTimeout;
             t_fdm->addReadFD(dc->d_socket, handleRunningTCPQuestion, dc->d_tcpConnection, &ttd);
           } else {
-            // fd might have been removed by read error code, so expect an exception
+            // fd might have been removed by read error code, or a read timeout, so expect an exception
             try {
               t_fdm->setReadTTD(dc->d_socket, ttd, g_tcpTimeout);
             }
-            catch (FDMultiplexerException &) {
+            catch (const FDMultiplexerException &) {
+              // but if the FD was removed because of a timeout while we were sending a response,
+              // we need to re-arm it. If it was an error it will error again.
+              ttd.tv_sec += g_tcpTimeout;
+              t_fdm->addReadFD(dc->d_socket, handleRunningTCPQuestion, dc->d_tcpConnection, &ttd);
             }
           }
         }
@@ -1911,10 +1939,10 @@ static void startDoResolve(void *p)
     }
 
     if (sr.d_outqueries || sr.d_authzonequeries) {
-      s_RC->cacheMisses++;
+      g_recCache->cacheMisses++;
     }
     else {
-      s_RC->cacheHits++;
+      g_recCache->cacheHits++;
     }
 
     if(spent < 0.001)
@@ -1963,13 +1991,13 @@ static void startDoResolve(void *p)
 
     //    cout<<dc->d_mdp.d_qname<<"\t"<<MT->getUsec()<<"\t"<<sr.d_outqueries<<endl;
   }
-  catch(PDNSException &ae) {
+  catch (const PDNSException &ae) {
     g_log<<Logger::Error<<"startDoResolve problem "<<makeLoginfo(dc)<<": "<<ae.reason<<endl;
   }
-  catch(const MOADNSException &mde) {
+  catch (const MOADNSException &mde) {
     g_log<<Logger::Error<<"DNS parser error "<<makeLoginfo(dc) <<": "<<dc->d_mdp.d_qname<<", "<<mde.what()<<endl;
   }
-  catch(std::exception& e) {
+  catch (const std::exception& e) {
     g_log<<Logger::Error<<"STL error "<< makeLoginfo(dc)<<": "<<e.what();
 
     // Luawrapper nests the exception from Lua, so we unnest it here
@@ -2508,8 +2536,6 @@ static string* doProcessUDPQuestion(const std::string& question, const ComboAddr
   EDNSSubnetOpts ednssubnet;
   bool ecsFound = false;
   bool ecsParsed = false;
-  uint16_t ecsBegin = 0;
-  uint16_t ecsEnd = 0;
   std::vector<DNSRecord> records;
   boost::optional<int> rcode = boost::none;
   uint32_t ttlCap = std::numeric_limits<uint32_t>::max();
@@ -2586,10 +2612,10 @@ static string* doProcessUDPQuestion(const std::string& question, const ComboAddr
        as cacheable we would cache it with a wrong tag, so better safe than sorry. */
     vState valState;
     if (qnameParsed) {
-      cacheHit = (!SyncRes::s_nopacketcache && t_packetCache->getResponsePacket(ctag, question, qname, qtype, qclass, g_now.tv_sec, &response, &age, &valState, &qhash, &ecsBegin, &ecsEnd, pbMessage ? &(*pbMessage) : nullptr));
+      cacheHit = (!SyncRes::s_nopacketcache && t_packetCache->getResponsePacket(ctag, question, qname, qtype, qclass, g_now.tv_sec, &response, &age, &valState, &qhash, pbMessage ? &(*pbMessage) : nullptr));
     }
     else {
-      cacheHit = (!SyncRes::s_nopacketcache && t_packetCache->getResponsePacket(ctag, question, qname, &qtype, &qclass, g_now.tv_sec, &response, &age, &valState, &qhash, &ecsBegin, &ecsEnd, pbMessage ? &(*pbMessage) : nullptr));
+      cacheHit = (!SyncRes::s_nopacketcache && t_packetCache->getResponsePacket(ctag, question, qname, &qtype, &qclass, g_now.tv_sec, &response, &age, &valState, &qhash, pbMessage ? &(*pbMessage) : nullptr));
     }
 
     if (cacheHit) {
@@ -2684,8 +2710,6 @@ static string* doProcessUDPQuestion(const std::string& question, const ComboAddr
   dc->d_tcp=false;
   dc->d_ecsFound = ecsFound;
   dc->d_ecsParsed = ecsParsed;
-  dc->d_ecsBegin = ecsBegin;
-  dc->d_ecsEnd = ecsEnd;
   dc->d_ednssubnet = ednssubnet;
   dc->d_ttlCap = ttlCap;
   dc->d_variable = variable;
@@ -2855,7 +2879,9 @@ static void handleNewUDPQuestion(int fd, FDMultiplexer::funcparam_t& var)
           }
 
           if(g_weDistributeQueries) {
-            distributeAsyncFunction(data, boost::bind(doProcessUDPQuestion, data, fromaddr, dest, source, destination, tv, fd, proxyProtocolValues));
+            std::string localdata = data;
+            distributeAsyncFunction(data, [localdata, fromaddr, dest, source, destination, tv, fd, proxyProtocolValues]() mutable
+              { return doProcessUDPQuestion(localdata, fromaddr, dest, source, destination, tv, fd, proxyProtocolValues); });
           }
           else {
             ++s_threadInfos[t_id].numberOfDistributedQueries;
@@ -2937,12 +2963,23 @@ static void makeTCPServerSockets(deferredAdd_t& deferredAdds, std::set<int>& tcp
     if( ::arg().mustDo("non-local-bind") )
 	Utility::setBindAny(AF_INET, fd);
 
-#ifdef SO_REUSEPORT
-    if(g_reusePort) {
-      if(setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &tmp, sizeof(tmp)) < 0)
-        throw PDNSException("SO_REUSEPORT: "+stringerror());
-    }
+    if (g_reusePort) {
+#if defined(SO_REUSEPORT_LB)
+      try {
+        SSetsockopt(fd, SOL_SOCKET, SO_REUSEPORT_LB, 1);
+      }
+      catch (const std::exception& e) {
+        throw PDNSException(std::string("SO_REUSEPORT_LB: ") + e.what());
+      }
+#elif defined(SO_REUSEPORT)
+      try {
+        SSetsockopt(fd, SOL_SOCKET, SO_REUSEPORT, 1);
+      }
+      catch (const std::exception& e) {
+        throw PDNSException(std::string("SO_REUSEPORT: ") + e.what());
+      }
 #endif
+    }
 
     if (::arg().asNum("tcp-fast-open") > 0) {
 #ifdef TCP_FASTOPEN
@@ -3030,12 +3067,23 @@ static void makeUDPServerSockets(deferredAdd_t& deferredAdds)
     sin.sin4.sin_port = htons(st.port);
 
   
-#ifdef SO_REUSEPORT
-    if(g_reusePort) {
-      if(setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one)) < 0)
-        throw PDNSException("SO_REUSEPORT: "+stringerror());
-    }
+    if (g_reusePort) {
+#if defined(SO_REUSEPORT_LB)
+      try {
+        SSetsockopt(fd, SOL_SOCKET, SO_REUSEPORT_LB, 1);
+      }
+      catch (const std::exception& e) {
+        throw PDNSException(std::string("SO_REUSEPORT_LB: ") + e.what());
+      }
+#elif defined(SO_REUSEPORT)
+      try {
+        SSetsockopt(fd, SOL_SOCKET, SO_REUSEPORT, 1);
+      }
+      catch (const std::exception& e) {
+        throw PDNSException(std::string("SO_REUSEPORT: ") + e.what());
+      }
 #endif
+    }
 
     if (sin.isIPv4()) {
       try {
@@ -3101,16 +3149,17 @@ static void doStats(void)
   static time_t lastOutputTime;
   static uint64_t lastQueryCount;
 
-  uint64_t cacheHits = s_RC->cacheHits;
-  uint64_t cacheMisses = s_RC->cacheMisses;
-  uint64_t cacheSize = s_RC->size();
-  auto rc_stats = s_RC->stats();
+  uint64_t cacheHits = g_recCache->cacheHits;
+  uint64_t cacheMisses = g_recCache->cacheMisses;
+  uint64_t cacheSize = g_recCache->size();
+  auto rc_stats = g_recCache->stats();
   double r = rc_stats.second == 0 ? 0.0 : (100.0 * rc_stats.first / rc_stats.second);
-  
+  uint64_t negCacheSize = g_negCache->size();
+
   if(g_stats.qcounter && (cacheHits + cacheMisses) && SyncRes::s_queries && SyncRes::s_outqueries) {
     g_log<<Logger::Notice<<"stats: "<<g_stats.qcounter<<" questions, "<<
       cacheSize << " cache entries, "<<
-      broadcastAccFunction<uint64_t>(pleaseGetNegCacheSize)<<" negative entries, "<<
+      negCacheSize<<" negative entries, "<<
       (int)((cacheHits*100.0)/(cacheHits+cacheMisses))<<"% cache hits"<<endl;
     g_log << Logger::Notice<< "stats: cache contended/acquired " << rc_stats.first << '/' << rc_stats.second << " = " << r << '%' << endl;
 
@@ -3178,7 +3227,6 @@ static void houseKeeping(void *)
     past.tv_sec -= 5;
     if (last_prune < past) {
       t_packetCache->doPruneTo(g_maxPacketCacheEntries / g_numWorkerThreads);
-      SyncRes::pruneNegCache(g_maxCacheEntries / (g_numWorkerThreads * 10));
 
       time_t limit;
       if(!((cleanCounter++)%40)) {  // this is a full scan!
@@ -3195,7 +3243,8 @@ static void houseKeeping(void *)
 
     if(isHandlerThread()) {
       if (now.tv_sec - last_RC_prune > 5) {
-        s_RC->doPrune(g_maxCacheEntries);
+        g_recCache->doPrune(g_maxCacheEntries);
+        g_negCache->prune(g_maxCacheEntries / 10);
         last_RC_prune = now.tv_sec;
       }
       // XXX !!! global
@@ -3549,7 +3598,7 @@ template<class T> T broadcastAccFunction(const boost::function<T*()>& func)
 
     const auto& tps = threadInfo.pipes;
     ThreadMSG* tmsg = new ThreadMSG();
-    tmsg->func = boost::bind(voider<T>, func);
+    tmsg->func = [func]{ return voider<T>(func); };
     tmsg->wantAnswer = true;
 
     if(write(tps.writeToThread, &tmsg, sizeof(tmsg)) != sizeof(tmsg)) {
@@ -3584,6 +3633,7 @@ static void handleRCC(int fd, FDMultiplexer::funcparam_t& var)
     RecursorControlParser rcp;
     RecursorControlParser::func_t* command;
 
+    g_log << Logger::Notice << "Received rec_control command '" << msg << "' from control socket" << endl;
     string answer=rcp.getAnswer(msg, &command);
 
     // If we are inside a chroot, we need to strip
@@ -3839,7 +3889,7 @@ catch(PDNSException& ae)
 
 string doTraceRegex(vector<string>::const_iterator begin, vector<string>::const_iterator end)
 {
-  return broadcastAccFunction<string>(boost::bind(pleaseUseNewTraceRegex, begin!=end ? *begin : ""));
+  return broadcastAccFunction<string>([=]{ return pleaseUseNewTraceRegex(begin!=end ? *begin : ""); });
 }
 
 static void checkLinuxIPv6Limits()
@@ -3960,7 +4010,7 @@ void parseACLs()
   }
 
   g_initialAllowFrom = allowFrom;
-  broadcastFunction(boost::bind(pleaseSupplantACLs, allowFrom));
+  broadcastFunction([=]{ return pleaseSupplantACLs(allowFrom); });
   oldAllowFrom = nullptr;
 
   l_initialized = true;
@@ -4149,11 +4199,6 @@ static int serviceMain(int argc, char*argv[])
   checkLinuxIPv6Limits();
   try {
     pdns::parseQueryLocalAddress(::arg()["query-local-address"]);
-    if (!::arg()["query-local-address6"].empty()) {
-      // TODO remove in 4.5.0
-      g_log<<Logger::Warning<<"query-local-address6 is deprecated and will be removed in a future version. Please use query-local-address for IPv6 addresses as well"<<endl;
-      pdns::parseQueryLocalAddress(::arg()["query-local-address6"]);
-    }
   }
   catch(std::exception& e) {
     g_log<<Logger::Error<<"Assigning local query addresses: "<<e.what();
@@ -4417,6 +4462,7 @@ static int serviceMain(int argc, char*argv[])
     }
     g_dontThrottleNames.setState(std::move(dontThrottleNames));
 
+    parts.clear();
     NetmaskGroup dontThrottleNetmasks;
     stringtok(parts, ::arg()["dont-throttle-netmasks"], " ,");
     for (const auto &p : parts) {
@@ -4781,7 +4827,6 @@ try
     t_bogusqueryring = std::unique_ptr<boost::circular_buffer<pair<DNSName, uint16_t> > >(new boost::circular_buffer<pair<DNSName, uint16_t> >());
     t_bogusqueryring->set_capacity(ringsize);
   }
-
   MT=std::unique_ptr<MTasker<PacketID,string> >(new MTasker<PacketID,string>(::arg().asNum("stack-size")));
   threadInfo.mt = MT.get();
 
@@ -5019,7 +5064,6 @@ int main(int argc, char **argv)
 #endif
     ::arg().set("delegation-only","Which domains we only accept delegations from")="";
     ::arg().set("query-local-address","Source IP address for sending queries")="0.0.0.0";
-    ::arg().set("query-local-address6","DEPRECATED: Use query-local-address for IPv6 as well. Source IPv6 address for sending queries. IF UNSET, IPv6 WILL NOT BE USED FOR OUTGOING QUERIES")="";
     ::arg().set("client-tcp-timeout","Timeout in seconds when talking to TCP clients")="2";
     ::arg().set("max-mthreads", "Maximum number of simultaneous Mtasker threads")="2048";
     ::arg().set("max-tcp-clients","Maximum number of simultaneous TCP clients")="128";
@@ -5133,7 +5177,7 @@ int main(int argc, char **argv)
     ::arg().setSwitch("qname-minimization", "Use Query Name Minimization")="yes";
     ::arg().setSwitch("nothing-below-nxdomain", "When an NXDOMAIN exists in cache for a name with fewer labels than the qname, send NXDOMAIN without doing a lookup (see RFC 8020)")="dnssec";
     ::arg().set("max-generate-steps", "Maximum number of $GENERATE steps when loading a zone from a file")="0";
-    ::arg().set("cache-shards", "Number of shards in the record cache")="1024";
+    ::arg().set("record-cache-shards", "Number of shards in the record cache")="1024";
 
 #ifdef NOD_ENABLED
     ::arg().set("new-domain-tracking", "Track newly observed domains (i.e. never seen before).")="no";
@@ -5155,6 +5199,12 @@ int main(int argc, char **argv)
     ::arg().setDefaults();
     g_log.toConsole(Logger::Info);
     ::arg().laxParse(argc,argv); // do a lax parse
+
+    if(::arg().mustDo("version")) {
+      showProductVersion();
+      showBuildConfiguration();
+      exit(0);
+    }
 
     string configname=::arg()["config-dir"]+"/recursor.conf";
     if(::arg()["config-name"]!="") {
@@ -5226,13 +5276,8 @@ int main(int argc, char **argv)
       cout<<::arg().helpstring(::arg()["help"])<<endl;
       exit(0);
     }
-    if(::arg().mustDo("version")) {
-      showProductVersion();
-      showBuildConfiguration();
-      exit(0);
-    }
-
-    s_RC = std::unique_ptr<MemRecursorCache>(new MemRecursorCache(::arg().asNum("cache-shards")));
+    g_recCache = std::unique_ptr<MemRecursorCache>(new MemRecursorCache(::arg().asNum("record-cache-shards")));
+    g_negCache = std::unique_ptr<NegCache>(new NegCache(::arg().asNum("record-cache-shards")));
 
     Logger::Urgency logUrgency = (Logger::Urgency)::arg().asNum("loglevel");
 

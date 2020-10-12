@@ -81,10 +81,12 @@ static const oid dontOutqueriesOID[] = { RECURSOR_STATS_OID, 62 };
 static const oid unreachablesOID[] = { RECURSOR_STATS_OID, 63 };
 static const oid chainResendsOID[] = { RECURSOR_STATS_OID, 64 };
 static const oid tcpClientsOID[] = { RECURSOR_STATS_OID, 65 };
+#ifdef __linux__
 static const oid udpRecvbufErrorsOID[] = { RECURSOR_STATS_OID, 66 };
 static const oid udpSndbufErrorsOID[] = { RECURSOR_STATS_OID, 67 };
 static const oid udpNoportErrorsOID[] = { RECURSOR_STATS_OID, 68 };
 static const oid udpinErrorsOID[] = { RECURSOR_STATS_OID, 69 };
+#endif /* __linux__ */
 static const oid ednsPingMatchesOID[] = { RECURSOR_STATS_OID, 70 };
 static const oid ednsPingMismatchesOID[] = { RECURSOR_STATS_OID, 71 };
 static const oid dnssecQueriesOID[] = { RECURSOR_STATS_OID, 72 };
@@ -117,6 +119,8 @@ static const oid specialMemoryUsageOID[] = { RECURSOR_STATS_OID, 98 };
 static const oid rebalancedQueriesOID[] = { RECURSOR_STATS_OID, 99 };
 static const oid qnameMinFallbackSuccessOID[] = { RECURSOR_STATS_OID, 100 };
 static const oid proxyProtocolInvalidOID[] = { RECURSOR_STATS_OID, 101 };
+static const oid recordCacheContendedOID[] = { RECURSOR_STATS_OID, 102 };
+static const oid recordCacheAcquiredOID[] = { RECURSOR_STATS_OID, 103 };
 
 static std::unordered_map<oid, std::string> s_statsMap;
 
@@ -327,5 +331,7 @@ RecursorSNMPAgent::RecursorSNMPAgent(const std::string& name, const std::string&
   registerCounter64Stat("special-memory-usage", specialMemoryUsageOID, OID_LENGTH(specialMemoryUsageOID));
   registerCounter64Stat("rebalanced-queries", rebalancedQueriesOID, OID_LENGTH(rebalancedQueriesOID));
   registerCounter64Stat("proxy-protocol-invalid", proxyProtocolInvalidOID, OID_LENGTH(proxyProtocolInvalidOID));
+  registerCounter64Stat("record-cache-contended", recordCacheContendedOID, OID_LENGTH(recordCacheContendedOID));
+  registerCounter64Stat("record-cache-acquired", recordCacheAcquiredOID, OID_LENGTH(recordCacheAcquiredOID));
 #endif /* HAVE_NET_SNMP */
 }

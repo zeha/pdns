@@ -31,6 +31,7 @@
 #include <bitset>
 #include "namespaces.hh"
 #include "iputils.hh"
+#include "svc-records.hh"
 
 #define includeboilerplate(RNAME)   RNAME##RecordContent(const DNSRecord& dr, PacketReader& pr); \
   RNAME##RecordContent(const string& zoneData);                                                  \
@@ -496,6 +497,31 @@ private:
   string d_keyring;
 };
 
+class SVCBRecordContent : public DNSRecordContent
+{
+public:
+  includeboilerplate(SVCB)
+  const DNSName& getTarget() const {return d_target;}
+  uint16_t getPriority() const {return d_priority;}
+
+private:
+  uint16_t d_priority;
+  DNSName d_target;
+  set<SvcParam> d_params;
+};
+
+class HTTPSRecordContent : public DNSRecordContent
+{
+public:
+  includeboilerplate(HTTPS)
+  const DNSName& getTarget() const {return d_target;}
+  uint16_t getPriority() const {return d_priority;}
+
+private:
+  uint16_t d_priority;
+  DNSName d_target;
+  set<SvcParam> d_params;
+};
 
 class RRSIGRecordContent : public DNSRecordContent
 {
@@ -783,6 +809,29 @@ private:
  // storage for the bytes
  uint8_t d_eui64[8];
 };
+
+#define APL_FAMILY_IPV4 1
+#define APL_FAMILY_IPV6 2
+typedef struct s_APLRDataElement {
+  uint16_t d_family;
+  uint8_t d_prefix;
+  bool d_n : 1;
+  unsigned int d_afdlength : 7;
+  union u_d_ip {
+      uint8_t d_ip4[4];
+      uint8_t d_ip6[16];
+  } d_ip;
+} APLRDataElement;
+class APLRecordContent : public DNSRecordContent
+{
+public:
+  APLRecordContent() {};
+  includeboilerplate(APL)
+private:
+  std::vector<APLRDataElement> aplrdata;
+  APLRDataElement parseAPLElement(const string &element);
+};
+
 
 class TKEYRecordContent : public DNSRecordContent
 {

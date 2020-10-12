@@ -27,6 +27,18 @@
 #include "namespaces.hh"
 #include "dnsrecords.hh"
 
+// Names below are RPZ Actions and end with a dot (except "Local Data")
+static const std::string rpzDropName("rpz-drop."),
+  rpzTruncateName("rpz-tcp-only."),
+  rpzNoActionName("rpz-passthru."),
+  rpzCustomName("Local Data");
+
+// Names below are (part) of RPZ Trigger names and do NOT end with a dot
+static const std::string rpzClientIPName("rpz-client-ip"),
+  rpzIPName("rpz-ip"),
+  rpzNSDnameName("rpz-nsdname"),
+  rpzNSIPName("rpz-nsip");
+
 DNSFilterEngine::DNSFilterEngine()
 {
 }
@@ -94,6 +106,8 @@ bool DNSFilterEngine::Zone::findNamedPolicy(const std::unordered_map<DNSName, DN
     iter = polmap.find(g_wildcarddnsname+s);
     if(iter != polmap.end()) {
       pol=iter->second;
+      pol.d_trigger = iter->first;
+      pol.d_hit = qname.toStringNoDot();
       return true;
     }
   }
@@ -109,6 +123,8 @@ bool DNSFilterEngine::Zone::findExactNamedPolicy(const std::unordered_map<DNSNam
   const auto& it = polmap.find(qname);
   if (it != polmap.end()) {
     pol = it->second;
+    pol.d_trigger = qname;
+    pol.d_hit = qname.toStringNoDot();
     return true;
   }
 
@@ -163,12 +179,18 @@ bool DNSFilterEngine::getProcessingPolicy(const DNSName& qname, const std::unord
     }
     if (z->findExactNSPolicy(qname, pol)) {
       // cerr<<"Had a hit on the nameserver ("<<qname<<") used to process the query"<<endl;
+      pol.d_trigger = qname;
+      pol.d_trigger.appendRawLabel(rpzNSDnameName);
+      pol.d_hit = qname.toStringNoDot();
       return true;
     }
 
     for (const auto& wc : wcNames) {
       if (z->findExactNSPolicy(wc, pol)) {
         // cerr<<"Had a hit on the nameserver ("<<qname<<") used to process the query"<<endl;
+        pol.d_trigger = wc;
+        pol.d_trigger.appendRawLabel(rpzNSDnameName);
+        pol.d_hit = qname.toStringNoDot();
         return true;
       }
     }
@@ -192,15 +214,39 @@ bool DNSFilterEngine::getProcessingPolicy(const ComboAddress& address, const std
 
     if(z->findNSIPPolicy(address, pol)) {
       //      cerr<<"Had a hit on the nameserver ("<<address.toString()<<") used to process the query"<<endl;
+      // XXX should use ns RPZ
+      pol.d_trigger = Zone::maskToRPZ(address);
+      pol.d_trigger.appendRawLabel(rpzNSIPName);
+      pol.d_hit = address.toString();
       return true;
     }
   }
   return false;
 }
 
-bool DNSFilterEngine::getQueryPolicy(const DNSName& qname, const ComboAddress& ca, const std::unordered_map<std::string,bool>& discardedPolicies, Policy& pol) const
+bool DNSFilterEngine::getClientPolicy(const ComboAddress& ca, const std::unordered_map<std::string,bool>& discardedPolicies, Policy& pol) const
 {
-  // cout<<"Got question for "<<qname<<" from "<<ca.toString()<<endl;
+  // cout<<"Got question from "<<ca.toString()<<endl;
+  for (const auto& z : d_zones) {
+    if (z->getPriority() >= pol.getPriority()) {
+      break;
+    }
+    const auto& zoneName = z->getName();
+    if (discardedPolicies.find(zoneName) != discardedPolicies.end()) {
+      continue;
+    }
+
+    if (z->findClientPolicy(ca, pol)) {
+      // cerr<<"Had a hit on the IP address ("<<ca.toString()<<") of the client"<<endl;
+      return true;
+    }
+  }
+  return false;
+}
+
+bool DNSFilterEngine::getQueryPolicy(const DNSName& qname, const std::unordered_map<std::string,bool>& discardedPolicies, Policy& pol) const
+{
+  //cerr<<"Got question for "<<qname<<' '<< pol.getPriority()<< endl;
   std::vector<bool> zoneEnabled(d_zones.size());
   size_t count = 0;
   bool allEmpty = true;
@@ -214,7 +260,7 @@ bool DNSFilterEngine::getQueryPolicy(const DNSName& qname, const ComboAddress& c
         enabled = false;
       }
       else {
-        if (z->hasQNamePolicies() || z->hasClientPolicies()) {
+        if (z->hasQNamePolicies()) {
           allEmpty = false;
         }
         else {
@@ -246,19 +292,18 @@ bool DNSFilterEngine::getQueryPolicy(const DNSName& qname, const ComboAddress& c
       continue;
     }
 
-    if (z->findClientPolicy(ca, pol)) {
-      // cerr<<"Had a hit on the IP address ("<<ca.toString()<<") of the client"<<endl;
-      return true;
-    }
-
     if (z->findExactQNamePolicy(qname, pol)) {
       // cerr<<"Had a hit on the name of the query"<<endl;
+      pol.d_trigger = qname;
+      pol.d_hit = qname.toStringNoDot();
       return true;
     }
 
     for (const auto& wc : wcNames) {
       if (z->findExactQNamePolicy(wc, pol)) {
         // cerr<<"Had a hit on the name of the query"<<endl;
+        pol.d_trigger = wc;
+        pol.d_hit = qname.toStringNoDot();
         return true;
       }
     }
@@ -271,37 +316,53 @@ bool DNSFilterEngine::getQueryPolicy(const DNSName& qname, const ComboAddress& c
 
 bool DNSFilterEngine::getPostPolicy(const vector<DNSRecord>& records, const std::unordered_map<std::string,bool>& discardedPolicies, Policy& pol) const
 {
-  ComboAddress ca;
-  for (const auto& r : records) {
-    if (r.d_place != DNSResourceRecord::ANSWER)
-      continue;
-    if (r.d_type == QType::A) {
-      if (auto rec = getRR<ARecordContent>(r)) {
-        ca = rec->getCA();
-      }
-    }
-    else if(r.d_type == QType::AAAA) {
-      if (auto rec = getRR<AAAARecordContent>(r)) {
-        ca = rec->getCA();
-      }
-    }
-    else
-      continue;
-
-    for (const auto& z : d_zones) {
-      if (z->getPriority() >= pol.getPriority()) {
-        break;
-      }
-      const auto& zoneName = z->getName();
-      if (discardedPolicies.find(zoneName) != discardedPolicies.end()) {
-        continue;
-      }
-
-      if (z->findResponsePolicy(ca, pol)) {
-	return true;
-      }
+  for (const auto& record : records) {
+    if (getPostPolicy(record, discardedPolicies, pol)) {
+      return true;
     }
   }
+
+  return false;
+}
+
+bool DNSFilterEngine::getPostPolicy(const DNSRecord& record, const std::unordered_map<std::string,bool>& discardedPolicies, Policy& pol) const
+{
+  ComboAddress ca;
+  if (record.d_place != DNSResourceRecord::ANSWER) {
+    return false;
+  }
+
+  if (record.d_type == QType::A) {
+    if (auto rec = getRR<ARecordContent>(record)) {
+      ca = rec->getCA();
+    }
+  }
+  else if(record.d_type == QType::AAAA) {
+    if (auto rec = getRR<AAAARecordContent>(record)) {
+      ca = rec->getCA();
+    }
+  }
+  else {
+    return false;
+  }
+
+  for (const auto& z : d_zones) {
+    if (z->getPriority() >= pol.getPriority()) {
+      break;
+    }
+    const auto& zoneName = z->getName();
+    if (discardedPolicies.find(zoneName) != discardedPolicies.end()) {
+      return false;
+    }
+
+    if (z->findResponsePolicy(ca, pol)) {
+      pol.d_trigger = Zone::maskToRPZ(ca);
+      pol.d_trigger.appendRawLabel(rpzIPName);
+      pol.d_hit = ca.toString();
+      return true;
+    }
+  }
+
   return false;
 }
 
@@ -311,33 +372,19 @@ void DNSFilterEngine::assureZones(size_t zone)
     d_zones.resize(zone+1);
 }
 
-void DNSFilterEngine::Zone::addClientTrigger(const Netmask& nm, Policy&& pol)
+void DNSFilterEngine::Zone::addNameTrigger(std::unordered_map<DNSName,Policy>& map, const DNSName& n, Policy&& pol, bool ignoreDuplicate, PolicyType ptype)
 {
-  pol.d_zoneData = d_zoneData;
-  pol.d_type = PolicyType::ClientIP;
-  d_qpolAddr.insert(nm).second=std::move(pol);
-}
+  auto it = map.find(n);
 
-void DNSFilterEngine::Zone::addResponseTrigger(const Netmask& nm, Policy&& pol)
-{
-  pol.d_zoneData = d_zoneData;
-  pol.d_type = PolicyType::ResponseIP;
-  d_postpolAddr.insert(nm).second=std::move(pol);
-}
-
-void DNSFilterEngine::Zone::addQNameTrigger(const DNSName& n, Policy&& pol, bool ignoreDuplicate)
-{
-  auto it = d_qpolName.find(n);
-
-  if (it != d_qpolName.end()) {
+  if (it != map.end()) {
     auto& existingPol = it->second;
 
     if (pol.d_kind != PolicyKind::Custom && !ignoreDuplicate) {
-      throw std::runtime_error("Adding a QName-based filter policy of kind " + getKindToString(pol.d_kind) + " but a policy of kind " + getKindToString(existingPol.d_kind) + " already exists for the following QName: " + n.toLogString());
+      throw std::runtime_error("Adding a " + getTypeToString(ptype) + "-based filter policy of kind " + getKindToString(pol.d_kind) + " but a policy of kind " + getKindToString(existingPol.d_kind) + " already exists for the following name: " + n.toLogString());
     }
 
     if (existingPol.d_kind != PolicyKind::Custom && ignoreDuplicate) {
-      throw std::runtime_error("Adding a QName-based filter policy of kind " + getKindToString(existingPol.d_kind) + " but there was already an existing policy for the following QName: " + n.toLogString());
+      throw std::runtime_error("Adding a " + getTypeToString(ptype) + "-based filter policy of kind " + getKindToString(existingPol.d_kind) + " but there was already an existing policy for the following name: " + n.toLogString());
     }
 
     existingPol.d_custom.reserve(existingPol.d_custom.size() + pol.d_custom.size());
@@ -345,57 +392,92 @@ void DNSFilterEngine::Zone::addQNameTrigger(const DNSName& n, Policy&& pol, bool
     std::move(pol.d_custom.begin(), pol.d_custom.end(), std::back_inserter(existingPol.d_custom));
   }
   else {
-    auto& qpol = d_qpolName.insert({n, std::move(pol)}).first->second;
+    auto& qpol = map.insert({n, std::move(pol)}).first->second;
     qpol.d_zoneData = d_zoneData;
-    qpol.d_type = PolicyType::QName;
+    qpol.d_type = ptype;
   }
 }
 
-void DNSFilterEngine::Zone::addNSTrigger(const DNSName& n, Policy&& pol)
+void DNSFilterEngine::Zone::addNetmaskTrigger(NetmaskTree<Policy>& nmt, const Netmask& nm, Policy&& pol, bool ignoreDuplicate, PolicyType ptype)
 {
-  pol.d_zoneData = d_zoneData;
-  pol.d_type = PolicyType::NSDName;
-  d_propolName.insert({n, std::move(pol)});
+  bool exists = nmt.has_key(nm);
+
+  if (exists) {
+    // XXX NetMaskTree's node_type has a non-const second, but lookup() returns a const node_type *, so we cannot modify second
+    // Should look into making lookup) return a non-const node_type *...
+    auto& existingPol = const_cast<Policy&>(nmt.lookup(nm)->second);
+
+    if (pol.d_kind != PolicyKind::Custom && !ignoreDuplicate) {
+      throw std::runtime_error("Adding a " + getTypeToString(ptype) + "-based filter policy of kind " + getKindToString(pol.d_kind) + " but a policy of kind " + getKindToString(existingPol.d_kind) + " already exists for the following netmask: " + nm.toString());
+    }
+
+    if (existingPol.d_kind != PolicyKind::Custom && ignoreDuplicate) {
+      throw std::runtime_error("Adding a " + getTypeToString(ptype) + "-based filter policy of kind " + getKindToString(existingPol.d_kind) + " but there was already an existing policy for the following netmask: " + nm.toString());
+    }
+
+    existingPol.d_custom.reserve(existingPol.d_custom.size() + pol.d_custom.size());
+
+    std::move(pol.d_custom.begin(), pol.d_custom.end(), std::back_inserter(existingPol.d_custom));
+  }
+  else {
+    pol.d_zoneData = d_zoneData;
+    pol.d_type = ptype;
+    nmt.insert(nm).second = std::move(pol);
+  }
 }
 
-void DNSFilterEngine::Zone::addNSIPTrigger(const Netmask& nm, Policy&& pol)
+bool DNSFilterEngine::Zone::rmNameTrigger(std::unordered_map<DNSName,Policy>& map, const DNSName& n, const Policy& pol)
 {
-  pol.d_zoneData = d_zoneData;
-  pol.d_type = PolicyType::NSIP;
-  d_propolNSAddr.insert(nm).second = std::move(pol);
-}
-
-bool DNSFilterEngine::Zone::rmClientTrigger(const Netmask& nm, const Policy& pol)
-{
-  d_qpolAddr.erase(nm);
-  return true;
-}
-
-bool DNSFilterEngine::Zone::rmResponseTrigger(const Netmask& nm, const Policy& pol)
-{
-  d_postpolAddr.erase(nm);
-  return true;
-}
-
-bool DNSFilterEngine::Zone::rmQNameTrigger(const DNSName& n, const Policy& pol)
-{
-  auto found = d_qpolName.find(n);
-  if (found == d_qpolName.end()) {
+  auto found = map.find(n);
+  if (found == map.end()) {
     return false;
   }
 
   auto& existing = found->second;
   if (existing.d_kind != DNSFilterEngine::PolicyKind::Custom) {
-    d_qpolName.erase(found);
+    map.erase(found);
     return true;
   }
 
   /* for custom types, we might have more than one type,
      and then we need to remove only the right ones. */
-  if (existing.d_custom.size() <= 1) {
-    d_qpolName.erase(found);
+  bool result = false;
+  for (auto& toRemove : pol.d_custom) {
+    for (auto it = existing.d_custom.begin(); it != existing.d_custom.end(); ++it) {
+      if (**it == *toRemove) {
+        existing.d_custom.erase(it);
+        result = true;
+        break;
+      }
+    }
+  }
+
+  // No records left for this trigger?
+  if (existing.d_custom.size() == 0) {
+    map.erase(found);
     return true;
   }
+
+  return result;
+}
+
+bool DNSFilterEngine::Zone::rmNetmaskTrigger(NetmaskTree<Policy>& nmt, const Netmask& nm, const Policy& pol)
+{
+  bool found = nmt.has_key(nm);
+  if (!found) {
+    return false;
+  }
+
+  // XXX NetMaskTree's node_type has a non-const second, but lookup() returns a const node_type *, so we cannot modify second
+  // Should look into making lookup) return a non-const node_type *...
+  auto& existing = const_cast<Policy&>(nmt.lookup(nm)->second);
+  if (existing.d_kind != DNSFilterEngine::PolicyKind::Custom) {
+    nmt.erase(nm);
+    return true;
+  }
+
+  /* for custom types, we might have more than one type,
+     and then we need to remove only the right ones. */
 
   bool result = false;
   for (auto& toRemove : pol.d_custom) {
@@ -408,19 +490,67 @@ bool DNSFilterEngine::Zone::rmQNameTrigger(const DNSName& n, const Policy& pol)
     }
   }
 
+  // No records left for this trigger?
+  if (existing.d_custom.size() == 0) {
+    nmt.erase(nm);
+    return true;
+  }
+
   return result;
+}
+
+void DNSFilterEngine::Zone::addClientTrigger(const Netmask& nm, Policy&& pol, bool ignoreDuplicate)
+{
+  addNetmaskTrigger(d_qpolAddr, nm, std::move(pol), ignoreDuplicate, PolicyType::ClientIP);
+}
+
+void DNSFilterEngine::Zone::addResponseTrigger(const Netmask& nm, Policy&& pol, bool ignoreDuplicate)
+{
+  addNetmaskTrigger(d_postpolAddr, nm, std::move(pol), ignoreDuplicate, PolicyType::ResponseIP);
+}
+
+void DNSFilterEngine::Zone::addQNameTrigger(const DNSName& n, Policy&& pol, bool ignoreDuplicate)
+{
+  addNameTrigger(d_qpolName, n, std::move(pol), ignoreDuplicate, PolicyType::QName);
+}
+
+void DNSFilterEngine::Zone::addNSTrigger(const DNSName& n, Policy&& pol, bool ignoreDuplicate)
+{
+  addNameTrigger(d_propolName, n, std::move(pol), ignoreDuplicate, PolicyType::NSDName);
+}
+
+void DNSFilterEngine::Zone::addNSIPTrigger(const Netmask& nm, Policy&& pol, bool ignoreDuplicate)
+{
+  addNetmaskTrigger(d_propolNSAddr, nm, std::move(pol), ignoreDuplicate, PolicyType::NSIP);
+}
+
+bool DNSFilterEngine::Zone::rmClientTrigger(const Netmask& nm, const Policy& pol)
+{
+  return rmNetmaskTrigger(d_qpolAddr, nm, pol);
+}
+
+bool DNSFilterEngine::Zone::rmResponseTrigger(const Netmask& nm, const Policy& pol)
+{
+  return rmNetmaskTrigger(d_postpolAddr, nm, pol);
+}
+
+bool DNSFilterEngine::Zone::rmQNameTrigger(const DNSName& n, const Policy& pol)
+{
+  return rmNameTrigger(d_qpolName, n, pol);
 }
 
 bool DNSFilterEngine::Zone::rmNSTrigger(const DNSName& n, const Policy& pol)
 {
-  d_propolName.erase(n); // XXX verify policy matched? =pol;
-  return true;
+  return rmNameTrigger(d_propolName, n, pol);
 }
 
 bool DNSFilterEngine::Zone::rmNSIPTrigger(const Netmask& nm, const Policy& pol)
 {
-  d_propolNSAddr.erase(nm);
-  return true;
+  return rmNetmaskTrigger(d_propolNSAddr, nm, pol);
+}
+
+std::string DNSFilterEngine::Policy::getLogString() const {
+  return ": RPZ Hit; PolicyName=" + getName() + "; Trigger=" + d_trigger.toLogString() + "; Hit=" + d_hit + "; Type=" + getTypeToString(d_type) + "; Kind=" + getKindToString(d_kind);
 }
 
 DNSRecord DNSFilterEngine::Policy::getRecordFromCustom(const DNSName& qname, const std::shared_ptr<DNSRecordContent>& custom) const
@@ -487,22 +617,21 @@ std::vector<DNSRecord> DNSFilterEngine::Policy::getCustomRecords(const DNSName& 
 
 std::string DNSFilterEngine::getKindToString(DNSFilterEngine::PolicyKind kind)
 {
-  static const DNSName drop("rpz-drop."), truncate("rpz-tcp-only."), noaction("rpz-passthru.");
-  static const DNSName rpzClientIP("rpz-client-ip"), rpzIP("rpz-ip"),
-    rpzNSDname("rpz-nsdname"), rpzNSIP("rpz-nsip.");
-  static const std::string rpzPrefix("rpz-");
+  //static const std::string rpzPrefix("rpz-");
 
   switch(kind) {
   case DNSFilterEngine::PolicyKind::NoAction:
-    return noaction.toString();
+    return rpzNoActionName;
   case DNSFilterEngine::PolicyKind::Drop:
-    return drop.toString();
+    return rpzDropName;
   case DNSFilterEngine::PolicyKind::NXDOMAIN:
     return g_rootdnsname.toString();
   case PolicyKind::NODATA:
     return g_wildcarddnsname.toString();
   case DNSFilterEngine::PolicyKind::Truncate:
-    return truncate.toString();
+    return rpzTruncateName;
+  case DNSFilterEngine::PolicyKind::Custom:
+    return rpzCustomName;
   default:
     throw std::runtime_error("Unexpected DNSFilterEngine::Policy kind");
   }
@@ -623,19 +752,19 @@ void DNSFilterEngine::Zone::dump(FILE* fp) const
   }
 
   for (const auto& pair : d_propolName) {
-    dumpNamedPolicy(fp, pair.first + DNSName("rpz-nsdname.") + d_domain, pair.second);
+    dumpNamedPolicy(fp, pair.first + DNSName(rpzNSDnameName) + d_domain, pair.second);
   }
 
   for (const auto& pair : d_qpolAddr) {
-    dumpAddrPolicy(fp, pair.first, DNSName("rpz-client-ip.") + d_domain, pair.second);
+    dumpAddrPolicy(fp, pair.first, DNSName(rpzClientIPName) + d_domain, pair.second);
   }
 
   for (const auto& pair : d_propolNSAddr) {
-    dumpAddrPolicy(fp, pair.first, DNSName("rpz-nsip.") + d_domain, pair.second);
+    dumpAddrPolicy(fp, pair.first, DNSName(rpzNSIPName) + d_domain, pair.second);
   }
 
   for (const auto& pair : d_postpolAddr) {
-    dumpAddrPolicy(fp, pair.first, DNSName("rpz-ip.") + d_domain, pair.second);
+    dumpAddrPolicy(fp, pair.first, DNSName(rpzIPName) + d_domain, pair.second);
   }
 }
 

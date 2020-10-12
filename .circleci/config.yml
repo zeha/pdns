@@ -220,6 +220,7 @@ commands:
               libssl-dev \
               libsystemd0 \
               libsodium23 \
+              patch \
               protobuf-compiler \
               virtualenv
 
@@ -745,6 +746,8 @@ jobs:
           context: gmysql-nsec3-optout-both
       - auth-regress:
           context: gmysql-nsec3-narrow
+      - auth-regress:
+          context: gmysql_sp-both
 
   test-auth-regress-gpgsql:
     resource_class: small
@@ -785,7 +788,7 @@ jobs:
       - image: debian:buster
         environment:
           LDAPHOST: ldap://ldapserver/
-      - image: powerdns/ldap-regress:1.2.4-0 # OpenLDAP 2.4.47
+      - image: powerdns/ldap-regress:1.2.4-1 # OpenLDAP 2.4.47
         name: ldapserver
         command: '--loglevel debug'
         environment:

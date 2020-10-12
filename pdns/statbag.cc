@@ -38,6 +38,7 @@
 StatBag::StatBag()
 {
   d_doRings=false;
+  d_allowRedeclare=false;
 }
 
 void StatBag::exists(const string &key)
@@ -48,27 +49,30 @@ void StatBag::exists(const string &key)
     }
 }
 
-string StatBag::directory()
+string StatBag::directory(const string &prefix)
 {
   string dir;
   ostringstream o;
 
-  for(const auto& i: d_stats) {
-    if (d_blacklist.find(i.first) != d_blacklist.end())
+  for(const auto& val : d_stats) {
+    if (d_blacklist.find(val.first) != d_blacklist.end())
       continue;
-    o<<i.first<<"="<<*(i.second)<<",";
+    if (val.first.find(prefix) != 0)
+      continue;
+    o << val.first<<"="<<*(val.second)<<",";
   }
 
 
   for(const funcstats_t::value_type& val :  d_funcstats) {
     if (d_blacklist.find(val.first) != d_blacklist.end())
       continue;
+    if (val.first.find(prefix) != 0)
+      continue;
     o << val.first<<"="<<val.second(val.first)<<",";
   }
   dir=o.str();
   return dir;
 }
-
 
 vector<string>StatBag::getEntries()
 {
@@ -105,6 +109,16 @@ StatType StatBag::getStatType(const string &item)
 
 void StatBag::declare(const string &key, const string &descrip, StatType statType)
 {
+  if(d_stats.count(key)) {
+    if (d_allowRedeclare) {
+      *d_stats[key] = 0;
+      return;
+    }
+    else {
+      throw PDNSException("Attempt to re-declare statbag '"+key+"'");
+    }
+  }
+
   auto i=make_unique<AtomicCounter>(0);
   d_stats[key]=std::move(i);
   d_keyDescrips[key]=descrip;
@@ -113,6 +127,10 @@ void StatBag::declare(const string &key, const string &descrip, StatType statTyp
 
 void StatBag::declare(const string &key, const string &descrip, StatBag::func_t func, StatType statType)
 {
+  if(d_funcstats.count(key) && !d_allowRedeclare) {
+    throw PDNSException("Attempt to re-declare func statbag '"+key+"'");
+  }
+
   d_funcstats[key]=func;
   d_keyDescrips[key]=descrip;
   d_statTypes[key]=statType;

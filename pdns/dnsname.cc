@@ -208,7 +208,9 @@ std::string DNSName::toDNSString() const
 
 std::string DNSName::toDNSStringLC() const
 {
-  return toLower(toDNSString()); // label lengths are always < 'A'
+  auto result = toDNSString();
+  toLowerInPlace(result); // label lengths are always < 'A'
+  return result;
 }
 
 /**
@@ -254,8 +256,9 @@ DNSName DNSName::makeRelative(const DNSName& zone) const
 {
   DNSName ret(*this);
   ret.makeUsRelative(zone);
-  return ret.empty() ? zone : ret; // HACK FIXME400
+  return ret;
 }
+
 void DNSName::makeUsRelative(const DNSName& zone) 
 {
   if (isPartOf(zone)) {

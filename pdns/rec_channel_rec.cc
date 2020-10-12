@@ -199,21 +199,23 @@ string static doGetParameter(T begin, T end)
 }
 
 
-static uint64_t dumpNegCache(NegCache& negcache, int fd)
+static uint64_t dumpNegCache(int fd)
 {
-  auto fp = std::unique_ptr<FILE, int(*)(FILE*)>(fdopen(dup(fd), "w"), fclose);
-  if(!fp) { // dup probably failed
+  int newfd = dup(fd);
+  if (newfd == -1) {
     return 0;
   }
-  uint64_t ret;
-  fprintf(fp.get(), "; negcache dump from thread follows\n;\n");
-  ret = negcache.dumpToFile(fp.get());
-  return ret;
+  auto fp = std::unique_ptr<FILE, int(*)(FILE*)>(fdopen(newfd, "w"), fclose);
+  if (!fp) {
+    return 0;
+  }
+  fprintf(fp.get(), "; negcache dump follows\n;\n");
+  return g_negCache->dumpToFile(fp.get());
 }
 
 static uint64_t* pleaseDump(int fd)
 {
-  return new uint64_t(dumpNegCache(SyncRes::t_sstorage.negcache, fd) + t_packetCache->doDump(fd));
+  return new uint64_t(t_packetCache->doDump(fd));
 }
 
 static uint64_t* pleaseDumpEDNSMap(int fd)
@@ -250,7 +252,7 @@ static string doDumpNSSpeeds(T begin, T end)
     return "Error opening dump file for writing: "+stringerror()+"\n";
   uint64_t total = 0;
   try {
-    total = broadcastAccFunction<uint64_t>(boost::bind(pleaseDumpNSSpeeds, fd));
+    total = broadcastAccFunction<uint64_t>([=]{ return pleaseDumpNSSpeeds(fd); });
   }
   catch(std::exception& e)
   {
@@ -281,7 +283,7 @@ static string doDumpCache(T begin, T end)
     return "Error opening dump file for writing: "+stringerror()+"\n";
   uint64_t total = 0;
   try {
-    total = s_RC->doDump(fd) + broadcastAccFunction<uint64_t>(boost::bind(pleaseDump, fd));
+    total = g_recCache->doDump(fd) + dumpNegCache(fd) + broadcastAccFunction<uint64_t>([=]{ return pleaseDump(fd); });
   }
   catch(...){}
   
@@ -303,7 +305,7 @@ static string doDumpEDNSStatus(T begin, T end)
     return "Error opening dump file for writing: "+stringerror()+"\n";
   uint64_t total = 0;
   try {
-    total = broadcastAccFunction<uint64_t>(boost::bind(pleaseDumpEDNSMap, fd));
+    total = broadcastAccFunction<uint64_t>([=]{ return pleaseDumpEDNSMap(fd); });
   }
   catch(...){}
 
@@ -364,7 +366,7 @@ static string doDumpThrottleMap(T begin, T end)
     return "Error opening dump file for writing: "+stringerror()+"\n";
   uint64_t total = 0;
   try {
-    total = broadcastAccFunction<uint64_t>(boost::bind(pleaseDumpThrottleMap, fd));
+    total = broadcastAccFunction<uint64_t>([=]{ return pleaseDumpThrottleMap(fd); });
   }
   catch(...){}
 
@@ -386,7 +388,7 @@ static string doDumpFailedServers(T begin, T end)
     return "Error opening dump file for writing: "+stringerror()+"\n";
   uint64_t total = 0;
   try {
-    total = broadcastAccFunction<uint64_t>(boost::bind(pleaseDumpFailedServers, fd));
+    total = broadcastAccFunction<uint64_t>([=]{ return pleaseDumpFailedServers(fd); });
   }
   catch(...){}
 
@@ -394,23 +396,10 @@ static string doDumpFailedServers(T begin, T end)
   return "dumped "+std::to_string(total)+" records\n";
 }
 
-uint64_t* pleaseWipeCache(const DNSName& canon, bool subtree, uint16_t qtype)
-{
-  return new uint64_t(s_RC->doWipeCache(canon, subtree));
-}
-
 uint64_t* pleaseWipePacketCache(const DNSName& canon, bool subtree, uint16_t qtype)
 {
   return new uint64_t(t_packetCache->doWipePacketCache(canon, qtype, subtree));
 }
-
-
-uint64_t* pleaseWipeAndCountNegCache(const DNSName& canon, bool subtree)
-{
-  uint64_t ret = SyncRes::wipeNegCache(canon, subtree);
-  return new uint64_t(ret);
-}
-
 
 template<typename T>
 static string doWipeCache(T begin, T end, uint16_t qtype)
@@ -435,9 +424,14 @@ static string doWipeCache(T begin, T end, uint16_t qtype)
 
   int count=0, pcount=0, countNeg=0;
   for (auto wipe : toWipe) {
-    count+= broadcastAccFunction<uint64_t>(boost::bind(pleaseWipeCache, wipe.first, wipe.second, qtype));
-    pcount+= broadcastAccFunction<uint64_t>(boost::bind(pleaseWipePacketCache, wipe.first, wipe.second, qtype));
-    countNeg+=broadcastAccFunction<uint64_t>(boost::bind(pleaseWipeAndCountNegCache, wipe.first, wipe.second));
+    try {
+      count += g_recCache->doWipeCache(wipe.first, wipe.second, qtype);
+      pcount += broadcastAccFunction<uint64_t>([=]{ return pleaseWipePacketCache(wipe.first, wipe.second, qtype);});
+      countNeg += g_negCache->wipe(wipe.first, wipe.second);
+    }
+    catch (const std::exception& e) {
+      g_log<<Logger::Warning<<", failed: "<<e.what()<<endl;
+    }
   }
 
   return "wiped "+std::to_string(count)+" records, "+std::to_string(countNeg)+" negative records, "+std::to_string(pcount)+" packets\n";
@@ -538,9 +532,15 @@ static string doAddNTA(T begin, T end)
   g_luaconfs.modify([who, why](LuaConfigItems& lci) {
       lci.negAnchors[who] = why;
       });
-  broadcastAccFunction<uint64_t>(boost::bind(pleaseWipeCache, who, true, 0xffff));
-  broadcastAccFunction<uint64_t>(boost::bind(pleaseWipePacketCache, who, true, 0xffff));
-  broadcastAccFunction<uint64_t>(boost::bind(pleaseWipeAndCountNegCache, who, true));
+  try {
+    g_recCache->doWipeCache(who, true, 0xffff);
+    broadcastAccFunction<uint64_t>([=]{return pleaseWipePacketCache(who, true, 0xffff);});
+    g_negCache->wipe(who, true);
+  }
+  catch (std::exception& e) {
+    g_log<<Logger::Warning<<", failed: "<<e.what()<<endl;
+    return "Unable to clear caches while adding Negative Trust Anchor for " + who.toStringRootDot() + ": " + e.what() + "\n";
+  }
   return "Added Negative Trust Anchor for " + who.toLogString() + " with reason '" + why + "'\n";
 }
 
@@ -581,20 +581,27 @@ static string doClearNTA(T begin, T end)
 
   string removed("");
   bool first(true);
-  for (auto const &entry : toRemove) {
-    g_log<<Logger::Warning<<"Clearing Negative Trust Anchor for "<<entry<<", requested via control channel"<<endl;
-    g_luaconfs.modify([entry](LuaConfigItems& lci) {
-        lci.negAnchors.erase(entry);
-      });
-    broadcastAccFunction<uint64_t>(boost::bind(pleaseWipeCache, entry, true, 0xffff));
-    broadcastAccFunction<uint64_t>(boost::bind(pleaseWipePacketCache, entry, true, 0xffff));
-    broadcastAccFunction<uint64_t>(boost::bind(pleaseWipeAndCountNegCache, entry, true));
-    if (!first) {
-      first = false;
-      removed += ",";
+  try {
+    for (auto const &entry : toRemove) {
+      g_log<<Logger::Warning<<"Clearing Negative Trust Anchor for "<<entry<<", requested via control channel"<<endl;
+      g_luaconfs.modify([entry](LuaConfigItems& lci) {
+                          lci.negAnchors.erase(entry);
+                        });
+      g_recCache->doWipeCache(entry, true, 0xffff);
+      broadcastAccFunction<uint64_t>([=]{return pleaseWipePacketCache(entry, true, 0xffff);});
+      g_negCache->wipe(entry, true);
+      if (!first) {
+        first = false;
+        removed += ",";
+      }
+      removed += " " + entry.toStringRootDot();
     }
-    removed += " " + entry.toStringRootDot();
   }
+  catch(std::exception &e) {
+    g_log<<Logger::Warning<<", failed: "<<e.what()<<endl;
+    return "Unable to clear caches while clearing Negative Trust Anchor for " + who.toStringRootDot() + ": " + e.what() + "\n";
+  }
+
   return "Removed Negative Trust Anchors for " + removed + "\n";
 }
 
@@ -643,9 +650,9 @@ static string doAddTA(T begin, T end)
       auto ds=std::dynamic_pointer_cast<DSRecordContent>(DSRecordContent::make(what));
       lci.dsAnchors[who].insert(*ds);
       });
-    broadcastAccFunction<uint64_t>(boost::bind(pleaseWipeCache, who, true, 0xffff));
-    broadcastAccFunction<uint64_t>(boost::bind(pleaseWipePacketCache, who, true, 0xffff));
-    broadcastAccFunction<uint64_t>(boost::bind(pleaseWipeAndCountNegCache, who, true));
+    g_recCache->doWipeCache(who, true, 0xffff);
+    broadcastAccFunction<uint64_t>([=]{return pleaseWipePacketCache(who, true, 0xffff);});
+    g_negCache->wipe(who, true);
     g_log<<Logger::Warning<<endl;
     return "Added Trust Anchor for " + who.toStringRootDot() + " with data " + what + "\n";
   }
@@ -684,20 +691,27 @@ static string doClearTA(T begin, T end)
 
   string removed("");
   bool first(true);
-  for (auto const &entry : toRemove) {
-    g_log<<Logger::Warning<<"Removing Trust Anchor for "<<entry<<", requested via control channel"<<endl;
-    g_luaconfs.modify([entry](LuaConfigItems& lci) {
-        lci.dsAnchors.erase(entry);
-      });
-    broadcastAccFunction<uint64_t>(boost::bind(pleaseWipeCache, entry, true, 0xffff));
-    broadcastAccFunction<uint64_t>(boost::bind(pleaseWipePacketCache, entry, true, 0xffff));
-    broadcastAccFunction<uint64_t>(boost::bind(pleaseWipeAndCountNegCache, entry, true));
-    if (!first) {
-      first = false;
-      removed += ",";
+  try {
+    for (auto const &entry : toRemove) {
+      g_log<<Logger::Warning<<"Removing Trust Anchor for "<<entry<<", requested via control channel"<<endl;
+      g_luaconfs.modify([entry](LuaConfigItems& lci) {
+                          lci.dsAnchors.erase(entry);
+                        });
+      g_recCache->doWipeCache(entry, true, 0xffff);
+      broadcastAccFunction<uint64_t>([=]{return pleaseWipePacketCache(entry, true, 0xffff);});
+      g_negCache->wipe(entry, true);
+      if (!first) {
+        first = false;
+        removed += ",";
+      }
+      removed += " " + entry.toStringRootDot();
     }
-    removed += " " + entry.toStringRootDot();
   }
+  catch (std::exception& e) {
+    g_log<<Logger::Warning<<", failed: "<<e.what()<<endl;
+    return "Unable to clear caches while clearing Trust Anchor for " + who.toStringRootDot() + ": " + e.what() + "\n";
+  }
+
   return "Removed Trust Anchor(s) for" + removed + "\n";
 }
 
@@ -880,15 +894,9 @@ static uint64_t getThrottleSize()
   return broadcastAccFunction<uint64_t>(pleaseGetThrottleSize);
 }
 
-uint64_t* pleaseGetNegCacheSize()
-{
-  uint64_t tmp=(SyncRes::getNegCacheSize());
-  return new uint64_t(tmp);
-}
-
 static uint64_t getNegCacheSize()
 {
-  return broadcastAccFunction<uint64_t>(pleaseGetNegCacheSize);
+  return g_negCache->size();
 }
 
 static uint64_t* pleaseGetFailedHostsSize()
@@ -934,7 +942,7 @@ static uint64_t getConcurrentQueries()
 
 static uint64_t doGetCacheSize()
 {
-  return s_RC->size();
+  return g_recCache->size();
 }
 
 static uint64_t doGetAvgLatencyUsec()
@@ -944,17 +952,17 @@ static uint64_t doGetAvgLatencyUsec()
 
 static uint64_t doGetCacheBytes()
 {
-  return s_RC->bytes();
+  return g_recCache->bytes();
 }
 
 static uint64_t doGetCacheHits()
 {
-  return s_RC->cacheHits;
+  return g_recCache->cacheHits;
 }
 
 static uint64_t doGetCacheMisses()
 {
-  return s_RC->cacheMisses;
+  return g_recCache->cacheMisses;
 }
 
 uint64_t* pleaseGetPacketCacheSize()
@@ -1023,6 +1031,8 @@ void registerAllStats()
   addGetStat("max-cache-entries", []() { return g_maxCacheEntries.load(); });
   addGetStat("max-packetcache-entries", []() { return g_maxPacketCacheEntries.load();}); 
   addGetStat("cache-bytes", doGetCacheBytes); 
+  addGetStat("record-cache-contended", []() { return g_recCache->stats().first;});
+  addGetStat("record-cache-acquired", []() { return g_recCache->stats().second;});
   
   addGetStat("packetcache-hits", doGetPacketCacheHits);
   addGetStat("packetcache-misses", doGetPacketCacheMisses); 
@@ -1112,13 +1122,13 @@ void registerAllStats()
   addGetStat("ecs-queries", &SyncRes::s_ecsqueries);
   addGetStat("ecs-responses", &SyncRes::s_ecsresponses);
   addGetStat("chain-resends", &g_stats.chainResends);
-  addGetStat("tcp-clients", boost::bind(TCPConnection::getCurrentConnections));
+  addGetStat("tcp-clients", []{return TCPConnection::getCurrentConnections();});
 
 #ifdef __linux__
-  addGetStat("udp-recvbuf-errors", boost::bind(udpErrorStats, "udp-recvbuf-errors"));
-  addGetStat("udp-sndbuf-errors", boost::bind(udpErrorStats, "udp-sndbuf-errors"));
-  addGetStat("udp-noport-errors", boost::bind(udpErrorStats, "udp-noport-errors"));
-  addGetStat("udp-in-errors", boost::bind(udpErrorStats, "udp-in-errors"));
+  addGetStat("udp-recvbuf-errors", []{return udpErrorStats("udp-recvbuf-errors");});
+  addGetStat("udp-sndbuf-errors", []{return udpErrorStats("udp-sndbuf-errors");});
+  addGetStat("udp-noport-errors", []{return udpErrorStats("udp-noport-errors");});
+  addGetStat("udp-in-errors", []{return udpErrorStats("udp-in-errors");});
 #endif
 
   addGetStat("edns-ping-matches", &g_stats.ednsPingMatches);

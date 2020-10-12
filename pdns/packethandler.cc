@@ -63,7 +63,6 @@ PacketHandler::PacketHandler():B(s_programname), d_dk(&B)
   d_doDNAME=::arg().mustDo("dname-processing");
   d_doExpandALIAS = ::arg().mustDo("expand-alias");
   d_logDNSDetails= ::arg().mustDo("log-dns-details");
-  d_doIPv6AdditionalProcessing = ::arg().mustDo("do-ipv6-additional-processing");
   string fname= ::arg()["lua-prequery-script"];
   if(fname.empty())
   {
@@ -439,61 +438,103 @@ bool PacketHandler::getBestWildcard(DNSPacket& p, const SOAData& sd, const DNSNa
   return haveSomething;
 }
 
-/** dangling is declared true if we were unable to resolve everything */
-int PacketHandler::doAdditionalProcessingAndDropAA(DNSPacket& p, std::unique_ptr<DNSPacket>& r, const SOAData& soadata, bool retargeted)
-{
-  DNSZoneRecord rr;
-  SOAData sd;
-  sd.db = nullptr;
-
-  if(p.qtype.getCode()!=QType::AXFR) { // this packet needs additional processing
-    // we now have a copy, push_back on packet might reallocate!
-    auto& records = r->getRRS();
-    vector<DNSZoneRecord> toAdd;
-
-    for(auto i = records.cbegin() ; i!= records.cend(); ++i) {
-      if(i->dr.d_place==DNSResourceRecord::ADDITIONAL ||
-         !(i->dr.d_type==QType::MX || i->dr.d_type==QType::NS || i->dr.d_type==QType::SRV))
-        continue;
-
-      if(r->d.aa && i->dr.d_name.countLabels() && i->dr.d_type==QType::NS && !B.getSOA(i->dr.d_name,sd) && !retargeted) { // drop AA in case of non-SOA-level NS answer, except for root referral
-        r->setA(false);
-        //        i->d_place=DNSResourceRecord::AUTHORITY; // XXX FIXME
-      }
-
-      DNSName lookup;
-
-      if(i->dr.d_type == QType::MX)
-        lookup = getRR<MXRecordContent>(i->dr)->d_mxname;
-      else if(i->dr.d_type == QType::SRV)
-        lookup = getRR<SRVRecordContent>(i->dr)->d_target;
-      else if(i->dr.d_type == QType::NS) 
-        lookup = getRR<NSRecordContent>(i->dr)->getNS();
-      else
-        continue;
-
-      B.lookup(QType(d_doIPv6AdditionalProcessing ? QType::ANY : QType::A), lookup, soadata.domain_id, &p);
-
-      while(B.get(rr)) {
-        if(rr.dr.d_type != QType::A && rr.dr.d_type!=QType::AAAA)
-          continue;
-        if(!rr.dr.d_name.isPartOf(soadata.qname)) {
-          // FIXME we might still pass on the record if it is occluded and the
-          // backend uses a single id for all zones
-          continue;
+DNSName PacketHandler::doAdditionalServiceProcessing(const DNSName &firstTarget, const uint16_t &qtype, const int domain_id, std::unique_ptr<DNSPacket>& r) {
+  DNSName ret = firstTarget;
+  size_t ctr = 5; // Max 5 SVCB Aliasforms per query
+  bool done = false;
+  while (!done && ctr > 0) {
+    DNSZoneRecord rr;
+    done = true;
+    B.lookup(QType(qtype), ret, domain_id);
+    while (B.get(rr)) {
+      rr.dr.d_place = DNSResourceRecord::ADDITIONAL;
+      switch (qtype) {
+        case QType::SVCB: {
+          auto rrc = getRR<SVCBRecordContent>(rr.dr);
+          r->addRecord(std::move(rr));
+          ret = rrc->getTarget().isRoot() ? ret : rrc->getTarget();
+          if (rrc->getPriority() == 0) {
+            done = false;
+          }
+          break;
         }
-        rr.dr.d_place=DNSResourceRecord::ADDITIONAL;
-        toAdd.push_back(rr);
+        case QType::HTTPS: {
+          auto rrc = getRR<HTTPSRecordContent>(rr.dr);
+          r->addRecord(std::move(rr));
+          ret = rrc->getTarget().isRoot() ? ret : rrc->getTarget();
+          if (rrc->getPriority() == 0) {
+            done = false;
+          }
+          break;
+        }
+        default:
+          while (B.get(rr)) ;              // don't leave DB handle in bad state
+
+          throw PDNSException("Unknown type (" + QType(qtype).getName() + ") for additional service processing");
       }
     }
-
-    for(auto& rec : toAdd) {
-      r->addRecord(std::move(rec));
-    }
-    
-    //records.insert(records.end(), toAdd.cbegin(), toAdd.cend()); // would be faster, but no dedup
+    ctr--;
   }
-  return 1;
+  return ret;
+}
+
+
+void PacketHandler::doAdditionalProcessing(DNSPacket& p, std::unique_ptr<DNSPacket>& r, const SOAData& soadata)
+{
+  DNSName content;
+  std::unordered_set<DNSName> lookup;
+  const auto& rrs = r->getRRS();
+
+  lookup.reserve(rrs.size());
+  for(auto& rr : rrs) {
+    if(rr.dr.d_place != DNSResourceRecord::ADDITIONAL) {
+      switch(rr.dr.d_type) {
+        case QType::NS:
+          content=std::move(getRR<NSRecordContent>(rr.dr)->getNS());
+          break;
+        case QType::MX:
+          content=std::move(getRR<MXRecordContent>(rr.dr)->d_mxname);
+          break;
+        case QType::SRV:
+          content=std::move(getRR<SRVRecordContent>(rr.dr)->d_target);
+          break;
+        case QType::SVCB: {
+          auto rrc = getRR<SVCBRecordContent>(rr.dr);
+          content = rrc->getTarget();
+          if (content.isRoot()) {
+            content = rr.dr.d_name;
+          }
+          content = doAdditionalServiceProcessing(content, rr.dr.d_type, soadata.domain_id, r);
+          break;
+        }
+        case QType::HTTPS: {
+          auto rrc = getRR<HTTPSRecordContent>(rr.dr);
+          content = rrc->getTarget();
+          if (content.isRoot()) {
+            content = rr.dr.d_name;
+          }
+          content = doAdditionalServiceProcessing(content, rr.dr.d_type, soadata.domain_id, r);
+          break;
+        }
+        default:
+          continue;
+      }
+      if(content.isPartOf(soadata.qname)) {
+        lookup.emplace(std::move(content));
+      }
+    }
+  }
+
+  DNSZoneRecord dzr;
+  for(const auto& name : lookup) {
+    B.lookup(QType(QType::ANY), name, soadata.domain_id, &p);
+    while(B.get(dzr)) {
+      if(dzr.dr.d_type == QType::A || dzr.dr.d_type == QType::AAAA) {
+        dzr.dr.d_place=DNSResourceRecord::ADDITIONAL;
+        r->addRecord(std::move(dzr));
+      }
+    }
+  }
 }
 
 
@@ -870,7 +911,7 @@ int PacketHandler::trySuperMasterSynchronous(const DNSPacket& p, const DNSName& 
 
 int PacketHandler::processNotify(const DNSPacket& p)
 {
-  /* now what? 
+  /* now what?
      was this notification from an approved address?
      was this notification approved by TSIG?
      We determine our internal SOA id (via UeberBackend)
@@ -948,7 +989,7 @@ int PacketHandler::processNotify(const DNSPacket& p)
   }
 
   if(::arg().mustDo("slave")) {
-    g_log<<Logger::Debug<<"Queueing slave check for "<<p.qdomain<<endl;
+    g_log<<Logger::Notice<<"Received NOTIFY for "<<p.qdomain<<" from "<<p.getRemote()<<" - queueing check"<<endl;
     Communicator.addSlaveCheckRequest(di, p.d_remote);
   }
   return 0;
@@ -1050,9 +1091,11 @@ void PacketHandler::completeANYRecords(DNSPacket& p, std::unique_ptr<DNSPacket>&
 {
   addNSECX(p, r, target, DNSName(), sd.qname, 5);
   if(sd.qname == p.qdomain) {
-    addDNSKEY(p, r, sd);
-    addCDNSKEY(p, r, sd);
-    addCDS(p, r, sd);
+    if(!d_dk.isPresigned(sd.qname)) {
+      addDNSKEY(p, r, sd);
+      addCDNSKEY(p, r, sd);
+      addCDS(p, r, sd);
+    }
     addNSEC3PARAM(p, r, sd);
   }
 }
@@ -1167,12 +1210,6 @@ std::unique_ptr<DNSPacket> PacketHandler::doQuestion(DNSPacket& p)
       return r;
     } else {
       getTSIGHashEnum(trc.d_algoName, p.d_tsig_algo);
-      if (p.d_tsig_algo == TSIG_GSS) {
-        GssContext gssctx(keyname);
-        if (!gssctx.getPeerPrincipal(p.d_peer_principal)) {
-          g_log<<Logger::Warning<<"Failed to extract peer principal from GSS context with keyname '"<<keyname<<"'"<<endl;
-        }
-      }
     }
     p.setTSIGDetails(trc, keyname, secret, trc.d_mac); // this will get copied by replyPacket()
     noCache=true;
@@ -1287,22 +1324,24 @@ std::unique_ptr<DNSPacket> PacketHandler::doQuestion(DNSPacket& p)
     if(!retargetcount) r->qdomainzone=sd.qname;
 
     if(sd.qname==p.qdomain) {
-      if(p.qtype.getCode() == QType::DNSKEY)
-      {
-        if(addDNSKEY(p, r, sd))
-          goto sendit;
+      if(!d_dk.isPresigned(sd.qname)) {
+        if(p.qtype.getCode() == QType::DNSKEY)
+        {
+          if(addDNSKEY(p, r, sd))
+            goto sendit;
+        }
+        else if(p.qtype.getCode() == QType::CDNSKEY)
+        {
+          if(addCDNSKEY(p,r, sd))
+            goto sendit;
+        }
+        else if(p.qtype.getCode() == QType::CDS)
+        {
+          if(addCDS(p,r, sd))
+            goto sendit;
+        }
       }
-      else if(p.qtype.getCode() == QType::CDNSKEY)
-      {
-        if(addCDNSKEY(p,r, sd))
-          goto sendit;
-      }
-      else if(p.qtype.getCode() == QType::CDS)
-      {
-        if(addCDS(p,r, sd))
-          goto sendit;
-      }
-      else if(d_dnssec && p.qtype.getCode() == QType::NSEC3PARAM)
+      if(d_dnssec && p.qtype.getCode() == QType::NSEC3PARAM)
       {
         if(addNSEC3PARAM(p,r, sd))
           goto sendit;
@@ -1552,9 +1591,7 @@ std::unique_ptr<DNSPacket> PacketHandler::doQuestion(DNSPacket& p)
     }
     
   sendit:;
-    if(doAdditionalProcessingAndDropAA(p, r, sd, retargetcount)<0) {
-      return 0;
-    }
+    doAdditionalProcessing(p, r, sd);
 
     for(const auto& loopRR: r->getRRS()) {
       if(loopRR.scopeMask) {

@@ -11,11 +11,37 @@ upgrade notes if your version is older than 3.4.2.
 4.3.x to 4.4.0
 --------------
 
-``IPSECKEY`` change on secondaries
+Record type changes on secondaries
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The in-database format of the ``IPSECKEY`` has changed from 'generic' format to its specialized format.
-It is recommended to re-transfer, using ``pdns_control retrieve ZONE``, all zones that have ``IPSECKEY`` or ``TYPE45`` records.
+The in-database format of the ``IPSECKEY``, ``SVCB``, ``HTTPS`` and ``APL`` records has changed from 'generic' format to its specialized format.
+It is recommended to re-transfer, using ``pdns_control retrieve ZONE``, all zones that have records of those types, or ``TYPExx``, for numbers 42, 45, 64, 65.
+
+PostgreSQL configuration escaping
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+We now correctly quote/escape Postgres connection parameters.
+If you used single quotes (or some other form of escaping) around your Postgres password because it contained spaces, you now need to put your unmodified, unescaped, unquoted password in your configuration.
+
+New LMDB schema
+^^^^^^^^^^^^^^^
+
+An LMDB schema upgrade is mandatory.
+Please carefully read :ref:`setting-lmdb-schema-version` before upgrading to 4.4.x.
+
+4.3.0 to 4.3.1
+--------------
+
+On RHEL/CentOS 8, the gmysql backend now uses ``mariadb-connector-c`` instead of ``mysql-libs``.
+This change was made because the default MySQL implementation for RHEL8 is MariaDB, and MariaDB and MySQL cannot be installed in parallel due to conflicting RPM packages.
+The mariadb client lib will connect to your existing MySQL servers without trouble.
+
+Unknown record encoding (`RFC 3597 <https://tools.ietf.org/html/rfc3597>`__) has become more strict as a result of the fixes for :doc:`PowerDNS Security Advisory 2020-05 <../security-advisories/powerdns-advisory-2020-05>`. Please use ``pdnsutil check-all-zones`` to review your zone contents.
+
+The previous set of indexes for the gsqlite3 backend was found to be poor.
+4.3.1 ships a new schema, and a migration:
+
+.. literalinclude:: ../modules/gsqlite3backend/4.3.0_to_4.3.1_schema.sqlite3.sql
 
 4.2.x to 4.3.0
 --------------
@@ -86,6 +112,11 @@ A bug in PowerDNS versions before 4.2.2/4.3.0 would cause wrong deletion or addi
 If you have zones which use inbound IXFR (in other words, the ``IXFR`` metadata item for that zone is set to ``1``), we strongly suggest triggering a completely fresh transfer.
 You could accomplish that by deleting all records in the zone with an SQL query and waiting for a fresh transfer, or (1) disabling IXFR (2) forcing a fresh transfer using ``pdns_control retrieve example.com`` (3) enabling IXFR again.
 
+4.2.X to 4.2.3
+--------------
+
+Unknown record encoding (`RFC 3597 <https://tools.ietf.org/html/rfc3597>`__) has become more strict as a result of the fixes for :doc:`PowerDNS Security Advisory 2020-05 <../security-advisories/powerdns-advisory-2020-05>`. Please use ``pdnsutil check-all-zones`` to review your zone contents.
+
 4.X.X to 4.2.2
 --------------
 
@@ -106,6 +137,11 @@ You could accomplish that by deleting all records in the zone with an SQL query 
 - The gsqlite3 backend, and the DNSSEC database for the BIND backend, have a new journal-mode setting. This setting defaults to `WAL <https://www.sqlite.org/wal.html>`_; older versions of PowerDNS did not set the journal mode, which means they used the SQLite default of DELETE.
 - Autoserial support has been removed. The ``change_date`` column has been removed from the ``records`` table in all gsql backends, but leaving it in is harmless.
 - The :doc:`Generic PostgreSQL backend <backends/generic-postgresql>` schema has changed: the ``notified_serial`` column type in the ``domains`` table has been changed from ``INT DEFAULT NULL`` to ``BIGINT DEFAULT NULL``: ``ALTER TABLE domains ALTER notified_serial TYPE bigint USING CASE WHEN notified_serial >= 0 THEN notified_serial::bigint END;``
+
+4.1.X to 4.1.14
+---------------
+
+Unknown record encoding (`RFC 3597 <https://tools.ietf.org/html/rfc3597>`__) has become more strict as a result of the fixes for :doc:`PowerDNS Security Advisory 2020-05 <../security-advisories/powerdns-advisory-2020-05>`. Please use ``pdnsutil check-all-zones`` to review your zone contents.
 
 4.1.0 to 4.1.1
 --------------

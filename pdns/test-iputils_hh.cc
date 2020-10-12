@@ -795,4 +795,61 @@ BOOST_AUTO_TEST_CASE(test_iterator) {
   }
 }
 
+BOOST_AUTO_TEST_CASE(test_ComboAddress_caContainerToString) {
+  ComboAddress ca1("192.0.2.1:53");
+  ComboAddress ca2("192.0.2.2:5300");
+  ComboAddress ca3("[2001:db8:53::3]:53");
+  ComboAddress ca4("[2001:db8:53::4]:5300");
+
+  set<ComboAddress> caSet({ca1, ca2, ca3, ca4});
+  vector<ComboAddress> caVector({ca1, ca2, ca3, ca4});
+
+  string caSetStr = ComboAddress::caContainerToString(caSet, false);
+  string caVectorStr = ComboAddress::caContainerToString(caVector, false);
+  BOOST_CHECK_EQUAL(caSetStr, "192.0.2.1,192.0.2.2,2001:db8:53::3,2001:db8:53::4");
+  BOOST_CHECK_EQUAL(caVectorStr, "192.0.2.1,192.0.2.2,2001:db8:53::3,2001:db8:53::4");
+
+  caSetStr = ComboAddress::caContainerToString(caSet, true);
+  caVectorStr = ComboAddress::caContainerToString(caVector, true);
+  BOOST_CHECK_EQUAL(caSetStr, "192.0.2.1,192.0.2.2:5300,2001:db8:53::3,[2001:db8:53::4]:5300");
+  BOOST_CHECK_EQUAL(caVectorStr, "192.0.2.1,192.0.2.2:5300,2001:db8:53::3,[2001:db8:53::4]:5300");
+
+  caSetStr = ComboAddress::caContainerToString(caSet, true, 0);
+  caVectorStr = ComboAddress::caContainerToString(caVector, true, 0);
+  BOOST_CHECK_EQUAL(caSetStr, "192.0.2.1:53,192.0.2.2:5300,[2001:db8:53::3]:53,[2001:db8:53::4]:5300");
+  BOOST_CHECK_EQUAL(caVectorStr, "192.0.2.1:53,192.0.2.2:5300,[2001:db8:53::3]:53,[2001:db8:53::4]:5300");
+}
+
+BOOST_AUTO_TEST_CASE(test_parseIPAndPort)
+{
+  struct {
+    std::string str;
+    uint16_t port;
+    std::string result;
+    bool ex;
+  } tests[] = {
+    { "", 0, "", true },
+    { "1.2.3.a", 53, "", true },
+    { "1::g3", 99, "", true },
+    { "1.2.3.4", 0, "1.2.3.4:0", false },
+    { "1.2.3.4", 999, "1.2.3.4:999", false },
+    { "1::", 999, "[1::]:999", false },
+    { "1::33:99", 0, "[1::33:99]", false },
+    { "[1::33]:99", 0, "[1::33]:99", false },
+    { "1:33::99", 0, "1:33::99", false },
+    { "[1:33::]:99", 0, "[1:33::]:99", false },
+    { "2003:1234::f561", 53, "[2003:1234::f561]:53", false },
+    { "2003:1234::f561:53", 54, "[2003:1234::f561:53]:54", false },
+  };
+
+  for (const auto& t : tests) {
+    if (t.ex) {
+      BOOST_CHECK_THROW(parseIPAndPort(t.str, t.port), PDNSException);
+    } else {
+      ComboAddress a = parseIPAndPort(t.str, t.port);
+      BOOST_CHECK_EQUAL(a.toStringWithPort(), ComboAddress(t.result).toStringWithPort());
+    }
+  }
+}
+
 BOOST_AUTO_TEST_SUITE_END()

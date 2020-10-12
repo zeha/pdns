@@ -440,17 +440,6 @@ string humanDuration(time_t passed)
   return ret.str();
 }
 
-DTime::DTime()
-{
-//  set(); // saves lots of gettimeofday calls
-  d_set.tv_sec=d_set.tv_usec=0;
-}
-
-time_t DTime::time()
-{
-  return d_set.tv_sec;
-}
-
 const string unquotify(const string &item)
 {
   if(item.size()<2)
@@ -1118,7 +1107,9 @@ string getMACAddress(const ComboAddress& ca)
       if(parts.size() < 4)
         return ret;
       unsigned int tmp[6];
-      sscanf(parts[3].c_str(), "%02x:%02x:%02x:%02x:%02x:%02x", tmp, tmp+1, tmp+2, tmp+3, tmp+4, tmp+5);
+      if (sscanf(parts[3].c_str(), "%02x:%02x:%02x:%02x:%02x:%02x", tmp, tmp+1, tmp+2, tmp+3, tmp+4, tmp+5) != 6) {
+        return ret;
+      }
       for(int i = 0 ; i< 6 ; ++i)
         ret.append(1, (char)tmp[i]);
       return ret;

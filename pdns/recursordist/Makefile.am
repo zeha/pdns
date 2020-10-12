@@ -120,7 +120,6 @@ pdns_recursor_SOURCES = \
 	filterpo.cc filterpo.hh \
 	fstrm_logger.cc fstrm_logger.hh \
 	gettime.cc gettime.hh \
-	gss_context.cc gss_context.hh \
 	iputils.hh iputils.cc \
 	ixfr.cc ixfr.hh \
 	json.cc json.hh \
@@ -176,6 +175,7 @@ pdns_recursor_SOURCES = \
 	sortlist.cc sortlist.hh \
 	sstuff.hh \
 	stable-bloom.hh \
+	svc-records.cc svc-records.hh \
 	syncres.cc syncres.hh \
 	threadname.hh threadname.cc \
 	tsigverifier.cc tsigverifier.hh \
@@ -185,6 +185,7 @@ pdns_recursor_SOURCES = \
 	uuid-utils.hh uuid-utils.cc \
 	validate.cc validate.hh validate-recursor.cc validate-recursor.hh \
 	version.cc version.hh \
+	views.hh \
 	webserver.cc webserver.hh \
 	ws-api.cc ws-api.hh \
 	ws-recursor.cc ws-recursor.hh \
@@ -242,7 +243,6 @@ testrunner_SOURCES = \
 	ednssubnet.cc ednssubnet.hh \
 	filterpo.cc filterpo.hh \
 	gettime.cc gettime.hh \
-	gss_context.cc gss_context.hh \
 	iputils.cc iputils.hh \
 	ixfr.cc ixfr.hh \
 	logger.cc logger.hh \
@@ -270,6 +270,7 @@ testrunner_SOURCES = \
 	sholder.hh \
 	sstuff.hh \
 	stable-bloom.hh \
+	svc-records.cc svc-records.hh \
 	syncres.cc syncres.hh \
 	test-arguments_cc.cc \
 	test-base32_cc.cc \
@@ -520,11 +521,23 @@ endif
 if !HAVE_SYSTEMD_PRIVATE_TMP
 	$(AM_V_GEN)perl -ni -e 'print unless /^PrivateTmp/' $@
 endif
+if !HAVE_SYSTEMD_PRIVATE_USERS
+	$(AM_V_GEN)perl -ni -e 'print unless /^PrivateUsers/' $@
+endif
+if !HAVE_SYSTEMD_PROTECT_CLOCK
+	$(AM_V_GEN)perl -ni -e 'print unless /^ProtectClock/' $@
+endif
 if !HAVE_SYSTEMD_PROTECT_CONTROL_GROUPS
 	$(AM_V_GEN)perl -ni -e 'print unless /^ProtectControlGroups/' $@
 endif
 if !HAVE_SYSTEMD_PROTECT_HOME
 	$(AM_V_GEN)perl -ni -e 'print unless /^ProtectHome/' $@
+endif
+if !HAVE_SYSTEMD_PROTECT_HOSTNAME
+	$(AM_V_GEN)perl -ni -e 'print unless /^ProtectHostname/' $@
+endif
+if !HAVE_SYSTEMD_PROTECT_KERNEL_LOGS
+	$(AM_V_GEN)perl -ni -e 'print unless /^ProtectKernelLogs/' $@
 endif
 if !HAVE_SYSTEMD_PROTECT_KERNEL_MODULES
 	$(AM_V_GEN)perl -ni -e 'print unless /^ProtectKernelModules/' $@
@@ -543,6 +556,9 @@ if !HAVE_SYSTEMD_RESTRICT_NAMESPACES
 endif
 if !HAVE_SYSTEMD_RESTRICT_REALTIME
 	$(AM_V_GEN)perl -ni -e 'print unless /^RestrictRealtime/' $@
+endif
+if !HAVE_SYSTEMD_RESTRICT_SUIDSGID
+	$(AM_V_GEN)perl -ni -e 'print unless /^RestrictSUIDSGID/' $@
 endif
 if !HAVE_SYSTEMD_SYSTEM_CALL_ARCHITECTURES
 	$(AM_V_GEN)perl -ni -e 'print unless /^SystemCallArchitectures/' $@

@@ -381,10 +381,14 @@ static void apiServerCacheFlush(HttpRequest* req, HttpResponse* resp) {
 
   DNSName canon = apiNameToDNSName(req->getvars["domain"]);
   bool subtree = (req->getvars.count("subtree") > 0 && req->getvars["subtree"].compare("true") == 0);
+  uint16_t qtype = 0xffff;
+  if (req->getvars.count("type")) {
+    qtype = QType::chartocode(req->getvars["type"].c_str());
+  }
 
-  int count = broadcastAccFunction<uint64_t>(std::bind(pleaseWipeCache, canon, subtree, 0xffff));
-  count += broadcastAccFunction<uint64_t>(std::bind(pleaseWipePacketCache, canon, subtree, 0xffff));
-  count += broadcastAccFunction<uint64_t>(std::bind(pleaseWipeAndCountNegCache, canon, subtree));
+  int count = g_recCache->doWipeCache(canon, subtree, qtype);
+  count += broadcastAccFunction<uint64_t>([=]{return pleaseWipePacketCache(canon, subtree, qtype);});
+  count += g_negCache->wipe(canon, subtree);
   resp->setBody(Json::object {
     { "count", count },
     { "result", "Flushed cache." }

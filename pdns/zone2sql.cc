@@ -114,26 +114,21 @@ static void startNewTransaction()
 static void emitDomain(const DNSName& domain, const vector<ComboAddress> *masters = 0) {
   string iDomain = domain.toStringRootDot();
   if(!::arg().mustDo("slave")) {
-    if(g_mode==POSTGRES || g_mode==MYSQL || g_mode==SQLITE) {
-      cout<<"insert into domains (name,type) values ("<<toLower(sqlstr(iDomain))<<",'NATIVE');"<<endl;
-    }
+    cout<<"insert into domains (name,type) values ("<<toLower(sqlstr(iDomain))<<",'NATIVE');"<<endl;
   }
-  else 
+  else
   {
-
-    if(g_mode==POSTGRES || g_mode==MYSQL || g_mode==SQLITE) {
-      string mstrs;
-      if (masters != 0 && ! masters->empty()) {
-        for(const auto& mstr :  *masters) {
-          mstrs.append(mstr.toStringWithPortExcept(53));
-          mstrs.append(1, ' ');
-        }
+    string mstrs;
+    if (masters != 0 && ! masters->empty()) {
+      for(const auto& mstr :  *masters) {
+        mstrs.append(mstr.toStringWithPortExcept(53));
+        mstrs.append(1, ' ');
       }
-      if (mstrs.empty())
-        cout<<"insert into domains (name,type) values ("<<sqlstr(iDomain)<<",'NATIVE');"<<endl;
-      else
-        cout<<"insert into domains (name,type,master) values ("<<sqlstr(iDomain)<<",'SLAVE'"<<", '"<<mstrs<<"');"<<endl;
     }
+    if (mstrs.empty())
+      cout<<"insert into domains (name,type) values ("<<sqlstr(iDomain)<<",'NATIVE');"<<endl;
+    else
+      cout<<"insert into domains (name,type,master) values ("<<sqlstr(iDomain)<<",'SLAVE'"<<", '"<<mstrs<<"');"<<endl;
   }
 }
 
@@ -175,29 +170,14 @@ static void emitRecord(const DNSName& zoneName, const DNSName &DNSqname, const s
     trim_left(content);
   }
 
-  bool auth = true;
-  if(qtype == "NS" && !pdns_iequals(qname, zname)) {
-    auth=false;
-  }
+  cout<<"insert into records (domain_id, name, type,content,ttl,prio,disabled) select id ,"<<
+    sqlstr(toLower(qname))<<", "<<
+    sqlstr(qtype)<<", "<<
+    sqlstr(stripDotContent(content))<<", "<<ttl<<", "<<prio<<", "<<(g_mode==POSTGRES ? (disabled ? "'t'" : "'f'") : std::to_string(disabled))<<
+    " from domains where name="<<toLower(sqlstr(zname))<<";\n";
 
-  if(g_mode==MYSQL || g_mode==SQLITE) {
-    cout<<"insert into records (domain_id, name, type,content,ttl,prio,disabled) select id ,"<<
-      sqlstr(toLower(qname))<<", "<<
-      sqlstr(qtype)<<", "<<
-      sqlstr(stripDotContent(content))<<", "<<ttl<<", "<<prio<<", "<<disabled<<
-      " from domains where name="<<toLower(sqlstr(zname))<<";\n";
-
-    if(!recordcomment.empty()) {
-      cout<<"insert into comments (domain_id,name,type,modified_at, comment) select id, "<<toLower(sqlstr(stripDot(qname)))<<", "<<sqlstr(qtype)<<", "<<time(0)<<", "<<sqlstr(recordcomment)<<" from domains where name="<<toLower(sqlstr(zname))<<";\n";
-    }
-  }
-  else if(g_mode==POSTGRES) {
-    cout<<"insert into records (domain_id, name, ordername, auth, type,content,ttl,prio,disabled) select id ,"<<
-      sqlstr(toLower(qname))<<", "<<
-      sqlstr(DNSName(qname).makeRelative(DNSName(zname)).makeLowerCase().labelReverse().toString(" ", false))<<", '"<< (auth  ? 't' : 'f') <<"', "<<
-      sqlstr(qtype)<<", "<<
-      sqlstr(stripDotContent(content))<<", "<<ttl<<", "<<prio<<", '"<<(disabled ? 't': 'f') <<
-      "' from domains where name="<<toLower(sqlstr(zname))<<";\n";
+  if(!recordcomment.empty()) {
+    cout<<"insert into comments (domain_id,name,type,modified_at, comment) select id, "<<toLower(sqlstr(stripDot(qname)))<<", "<<sqlstr(qtype)<<", "<<time(0)<<", "<<sqlstr(recordcomment)<<" from domains where name="<<toLower(sqlstr(zname))<<";\n";
   }
 }
 

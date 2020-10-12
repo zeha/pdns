@@ -187,7 +187,6 @@ void doClient(ComboAddress server, const std::string& command)
   }
 
   string histfile = historyFile();
-  set<string> dupper;
   {
     ifstream history(histfile);
     string line;
@@ -230,7 +229,6 @@ void doClient(ComboAddress server, const std::string& command)
 void doConsole()
 {
   string histfile = historyFile(true);
-  set<string> dupper;
   {
     ifstream history(histfile);
     string line;
@@ -362,10 +360,11 @@ const std::vector<ConsoleKeyword> g_consoleKeywords{
   { "AndRule", true, "list of DNS rules", "matches if all sub-rules matches" },
   { "benchRule", true, "DNS Rule [, iterations [, suffix]]", "bench the specified DNS rule" },
   { "carbonServer", true, "serverIP, [ourname], [interval]", "report statistics to serverIP using our hostname, or 'ourname' if provided, every 'interval' seconds" },
-  { "controlSocket", true, "addr", "open a control socket on this address / connect to this address in client mode" },
+  { "clearConsoleHistory", true, "", "clear the internal (in-memory) history of console commands" },
   { "clearDynBlocks", true, "", "clear all dynamic blocks" },
   { "clearQueryCounters", true, "", "clears the query counter buffer" },
   { "clearRules", true, "", "remove all current rules" },
+  { "controlSocket", true, "addr", "open a control socket on this address / connect to this address in client mode" },
   { "ContinueAction", true, "action", "execute the specified action and continue the processing of the remaining rules, regardless of the return of the action" },
   { "DelayAction", true, "milliseconds", "delay the response by the specified amount of milliseconds (UDP-only)" },
   { "DelayResponseAction", true, "milliseconds", "delay the response by the specified amount of milliseconds (UDP-only)" },
@@ -526,10 +525,12 @@ const std::vector<ConsoleKeyword> g_consoleKeywords{
   { "setMaxTCPQueriesPerConnection", true, "n", "set the maximum number of queries in an incoming TCP connection. 0 means unlimited" },
   { "setMaxTCPQueuedConnections", true, "n", "set the maximum number of TCP connections queued (waiting to be picked up by a client thread)" },
   { "setMaxUDPOutstanding", true, "n", "set the maximum number of outstanding UDP queries to a given backend server. This can only be set at configuration time and defaults to 65535" },
-  { "SetNegativeAndSOAAction", "true", "nxd, zone, ttl, mname, rname, serial, refresh, retry, expire, minimum [, options]", "Turn a query into a NXDomain or NoData answer and sets a SOA record in the additional section" },
+  { "SetNegativeAndSOAAction", true, "nxd, zone, ttl, mname, rname, serial, refresh, retry, expire, minimum [, options]", "Turn a query into a NXDomain or NoData answer and sets a SOA record in the additional section" },
   { "setPayloadSizeOnSelfGeneratedAnswers", true, "payloadSize", "set the UDP payload size advertised via EDNS on self-generated responses" },
   { "setPoolServerPolicy", true, "policy, pool", "set the server selection policy for this pool to that policy" },
-  { "setPoolServerPolicyLua", true, "name, func, pool", "set the server selection policy for this pool to one named 'name' and provided by 'function'" },
+  { "setPoolServerPolicyLua", true, "name, function, pool", "set the server selection policy for this pool to one named 'name' and provided by 'function'" },
+  { "setPoolServerPolicyLuaFFI", true, "name, function, pool", "set the server selection policy for this pool to one named 'name' and provided by 'function'" },
+  { "setPoolServerPolicyLuaFFIPerThread", true, "name, code", "set server selection policy for this pool to one named 'name' and returned by the Lua FFI code passed in 'code'" },
   { "setPreserveTrailingData", true, "bool", "set whether trailing data should be preserved while adding ECS or XPF records to incoming queries" },
   { "setQueryCount", true, "bool", "set whether queries should be counted" },
   { "setQueryCountFilter", true, "func", "filter queries that would be counted, where `func` is a function with parameter `dq` which decides whether a query should and how it should be counted" },
@@ -542,6 +543,7 @@ const std::vector<ConsoleKeyword> g_consoleKeywords{
   { "setServerPolicy", true, "policy", "set server selection policy to that policy" },
   { "setServerPolicyLua", true, "name, function", "set server selection policy to one named 'name' and provided by 'function'" },
   { "setServerPolicyLuaFFI", true, "name, function", "set server selection policy to one named 'name' and provided by the Lua FFI 'function'" },
+  { "setServerPolicyLuaFFIPerThread", true, "name, code", "set server selection policy to one named 'name' and returned by the Lua FFI code passed in 'code'" },
   { "setServFailWhenNoServer", true, "bool", "if set, return a ServFail when no servers are available, instead of the default behaviour of dropping the query" },
   { "setStaleCacheEntriesTTL", true, "n", "allows using cache entries expired for at most n seconds when there is no backend available to answer for a query" },
   { "setSyslogFacility", true, "facility", "set the syslog logging facility to 'facility'. Defaults to LOG_DAEMON" },
@@ -601,7 +603,7 @@ const std::vector<ConsoleKeyword> g_consoleKeywords{
   { "topCacheHitResponseRule", true, "", "move the last cache hit response rule to the first position" },
   { "topClients", true, "n", "show top-`n` clients sending the most queries over length of ringbuffer" },
   { "topQueries", true, "n[, labels]", "show top 'n' queries, as grouped when optionally cut down to 'labels' labels" },
-  { "topResponses", true, "n, kind[, labels]", "show top 'n' responses with RCODE=kind (0=NO Error, 2=ServFail, 3=ServFail), as grouped when optionally cut down to 'labels' labels" },
+  { "topResponses", true, "n, kind[, labels]", "show top 'n' responses with RCODE=kind (0=NO Error, 2=ServFail, 3=NXDomain), as grouped when optionally cut down to 'labels' labels" },
   { "topResponseRule", true, "", "move the last response rule to the first position" },
   { "topRule", true, "", "move the last rule to the first position" },
   { "topSelfAnsweredResponseRule", true, "", "move the last self-answered response rule to the first position" },
@@ -821,4 +823,10 @@ catch(const std::exception& e)
 {
   close(fd);
   errlog("Control connection died: %s", e.what());
+}
+
+void clearConsoleHistory()
+{
+  clear_history();
+  g_confDelta.clear();
 }

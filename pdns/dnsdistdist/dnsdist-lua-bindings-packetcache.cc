@@ -27,10 +27,10 @@
 #include "dnsdist.hh"
 #include "dnsdist-lua.hh"
 
-void setupLuaBindingsPacketCache()
+void setupLuaBindingsPacketCache(LuaContext& luaCtx)
 {
   /* PacketCache */
-  g_lua.writeFunction("newPacketCache", [](size_t maxEntries, boost::optional<std::unordered_map<std::string, boost::variant<bool, size_t>>> vars) {
+  luaCtx.writeFunction("newPacketCache", [](size_t maxEntries, boost::optional<std::unordered_map<std::string, boost::variant<bool, size_t>>> vars) {
 
       bool keepStaleData = false;
       size_t maxTTL = 86400;
@@ -42,6 +42,7 @@ void setupLuaBindingsPacketCache()
       bool dontAge = false;
       bool deferrableInsertLock = true;
       bool ecsParsing = false;
+      bool cookieHashing = false;
 
       if (vars) {
 
@@ -84,48 +85,60 @@ void setupLuaBindingsPacketCache()
         if (vars->count("temporaryFailureTTL")) {
           tempFailTTL = boost::get<size_t>((*vars)["temporaryFailureTTL"]);
         }
+
+        if (vars->count("cookieHashing")) {
+          cookieHashing = boost::get<bool>((*vars)["cookieHashing"]);
+        }
       }
 
       auto res = std::make_shared<DNSDistPacketCache>(maxEntries, maxTTL, minTTL, tempFailTTL, maxNegativeTTL, staleTTL, dontAge, numberOfShards, deferrableInsertLock, ecsParsing);
 
       res->setKeepStaleData(keepStaleData);
+      res->setCookieHashing(cookieHashing);
 
       return res;
     });
-  g_lua.registerFunction<std::string(std::shared_ptr<DNSDistPacketCache>::*)()>("toString", [](const std::shared_ptr<DNSDistPacketCache>& cache) {
+  luaCtx.registerFunction<std::string(std::shared_ptr<DNSDistPacketCache>::*)()>("toString", [](const std::shared_ptr<DNSDistPacketCache>& cache) {
       if (cache) {
         return cache->toString();
       }
       return std::string();
     });
-  g_lua.registerFunction<bool(std::shared_ptr<DNSDistPacketCache>::*)()>("isFull", [](const std::shared_ptr<DNSDistPacketCache>& cache) {
+  luaCtx.registerFunction<bool(std::shared_ptr<DNSDistPacketCache>::*)()>("isFull", [](const std::shared_ptr<DNSDistPacketCache>& cache) {
       if (cache) {
         return cache->isFull();
       }
       return false;
     });
-  g_lua.registerFunction<size_t(std::shared_ptr<DNSDistPacketCache>::*)(size_t)>("purgeExpired", [](std::shared_ptr<DNSDistPacketCache>& cache, size_t upTo) {
+  luaCtx.registerFunction<size_t(std::shared_ptr<DNSDistPacketCache>::*)(size_t)>("purgeExpired", [](std::shared_ptr<DNSDistPacketCache>& cache, size_t upTo) {
       if (cache) {
         return cache->purgeExpired(upTo);
       }
       return static_cast<size_t>(0);
     });
-  g_lua.registerFunction<size_t(std::shared_ptr<DNSDistPacketCache>::*)(size_t)>("expunge", [](std::shared_ptr<DNSDistPacketCache>& cache, size_t upTo) {
+  luaCtx.registerFunction<size_t(std::shared_ptr<DNSDistPacketCache>::*)(size_t)>("expunge", [](std::shared_ptr<DNSDistPacketCache>& cache, size_t upTo) {
       if (cache) {
         return cache->expunge(upTo);
       }
       return static_cast<size_t>(0);
     });
-  g_lua.registerFunction<void(std::shared_ptr<DNSDistPacketCache>::*)(const DNSName& dname, boost::optional<uint16_t> qtype, boost::optional<bool> suffixMatch)>("expungeByName", [](
+  luaCtx.registerFunction<void(std::shared_ptr<DNSDistPacketCache>::*)(const boost::variant<DNSName, string>& dname, boost::optional<uint16_t> qtype, boost::optional<bool> suffixMatch)>("expungeByName", [](
               std::shared_ptr<DNSDistPacketCache>& cache,
-              const DNSName& dname,
+              const boost::variant<DNSName, string>& dname,
               boost::optional<uint16_t> qtype,
               boost::optional<bool> suffixMatch) {
+                DNSName qname;
+                if (dname.type() == typeid(DNSName)) {
+                  qname = boost::get<DNSName>(dname);
+                }
+                if (dname.type() == typeid(string)) {
+                  qname = DNSName(boost::get<string>(dname));
+                }
                 if (cache) {
-                  g_outputBuffer="Expunged " + std::to_string(cache->expungeByName(dname, qtype ? *qtype : QType(QType::ANY).getCode(), suffixMatch ? *suffixMatch : false)) + " records\n";
+                  g_outputBuffer="Expunged " + std::to_string(cache->expungeByName(qname, qtype ? *qtype : QType(QType::ANY).getCode(), suffixMatch ? *suffixMatch : false)) + " records\n";
                 }
     });
-  g_lua.registerFunction<void(std::shared_ptr<DNSDistPacketCache>::*)()>("printStats", [](const std::shared_ptr<DNSDistPacketCache>& cache) {
+  luaCtx.registerFunction<void(std::shared_ptr<DNSDistPacketCache>::*)()>("printStats", [](const std::shared_ptr<DNSDistPacketCache>& cache) {
       if (cache) {
         g_outputBuffer="Entries: " + std::to_string(cache->getEntriesCount()) + "/" + std::to_string(cache->getMaxEntries()) + "\n";
         g_outputBuffer+="Hits: " + std::to_string(cache->getHits()) + "\n";
@@ -137,7 +150,7 @@ void setupLuaBindingsPacketCache()
         g_outputBuffer+="TTL Too Shorts: " + std::to_string(cache->getTTLTooShorts()) + "\n";
       }
     });
-  g_lua.registerFunction<std::unordered_map<std::string, uint64_t>(std::shared_ptr<DNSDistPacketCache>::*)()>("getStats", [](const std::shared_ptr<DNSDistPacketCache>& cache) {
+  luaCtx.registerFunction<std::unordered_map<std::string, uint64_t>(std::shared_ptr<DNSDistPacketCache>::*)()>("getStats", [](const std::shared_ptr<DNSDistPacketCache>& cache) {
       std::unordered_map<std::string, uint64_t> stats;
       if (cache) {
         stats["entries"] = cache->getEntriesCount();
@@ -152,7 +165,7 @@ void setupLuaBindingsPacketCache()
       }
       return stats;
     });
-  g_lua.registerFunction<void(std::shared_ptr<DNSDistPacketCache>::*)(const std::string& fname)>("dump", [](const std::shared_ptr<DNSDistPacketCache>& cache, const std::string& fname) {
+  luaCtx.registerFunction<void(std::shared_ptr<DNSDistPacketCache>::*)(const std::string& fname)>("dump", [](const std::shared_ptr<DNSDistPacketCache>& cache, const std::string& fname) {
       if (cache) {
 
         int fd = open(fname.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0660);

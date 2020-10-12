@@ -14,6 +14,9 @@ void RecProtoBufMessage::clearUDR()
 {
 #ifdef HAVE_PROTOBUF
   auto response = d_message.mutable_response();
+  if (!response) {
+    return;
+  }
   const int count = response->rrs_size();
   for (int idx = 0; idx < count; idx++) {
     auto rr = response->mutable_rrs(idx);
@@ -163,6 +166,26 @@ void RecProtoBufMessage::setAppliedPolicyType(const DNSFilterEngine::PolicyType&
     default:
       throw std::runtime_error("Unsupported protobuf policy type");
     }
+  }
+#endif /* HAVE_PROTOBUF */
+}
+
+void RecProtoBufMessage::setAppliedPolicyTrigger(const DNSName& trigger)
+{
+#ifdef HAVE_PROTOBUF
+  PBDNSMessage_DNSResponse* response = d_message.mutable_response();
+  if (response && !trigger.empty()) {
+    response->set_appliedpolicytrigger(trigger.toString());
+  }
+#endif /* HAVE_PROTOBUF */
+}
+
+void RecProtoBufMessage::setAppliedPolicyHit(const string& hit)
+{
+#ifdef HAVE_PROTOBUF
+  PBDNSMessage_DNSResponse* response = d_message.mutable_response();
+  if (response && !hit.empty()) {
+    response->set_appliedpolicyhit(hit);
   }
 #endif /* HAVE_PROTOBUF */
 }

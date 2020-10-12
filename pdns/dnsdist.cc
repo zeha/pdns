@@ -204,12 +204,13 @@ bool DNSQuestion::setTrailingData(const std::string& tail)
   const uint16_t messageLen = getDNSPacketLength(message, this->len);
   const uint16_t tailLen = tail.size();
   if (tailLen > (this->size - messageLen)) {
+    vinfolog("Trailing data update failed, the new trailing data size was %d, the existing message length was %d, packet size was %d and buffer size %d", tail.size(), messageLen, this->len, this->size);
     return false;
   }
 
   /* Update length and copy data from the Lua string. */
   this->len = messageLen + tailLen;
-  if(tailLen > 0) {
+  if (tailLen > 0) {
     tail.copy(message + messageLen, tailLen);
   }
   return true;
@@ -311,8 +312,8 @@ static bool fixUpResponse(char** response, uint16_t* responseLen, size_t* respon
     return true;
   }
 
-  if(g_fixupCase) {
-    string realname = qname.toDNSString();
+  if (g_fixupCase) {
+    const auto& realname = qname.getStorage();
     if (*responseLen >= (sizeof(dnsheader) + realname.length())) {
       memcpy(*response + sizeof(dnsheader), realname.c_str(), realname.length());
     }
@@ -1199,7 +1200,7 @@ ProcessQueryResult processQuery(DNSQuestion& dq, ClientState& cs, LocalHolders& 
       policy = *(serverPool->policy);
     }
     const auto servers = serverPool->getServers();
-    selectedBackend = getSelectedBackendFromPolicy(policy, *servers, dq);
+    selectedBackend = policy.getSelectedBackend(*servers, dq);
 
     uint16_t cachedResponseSize = dq.size;
     uint32_t allowExpired = selectedBackend ? 0 : g_staleCacheEntriesTTL;
@@ -1856,14 +1857,12 @@ static void setUpLocalBind(std::unique_ptr<ClientState>& cs)
   }
 
   if (cs->reuseport) {
-#ifdef SO_REUSEPORT
-    SSetsockopt(fd, SOL_SOCKET, SO_REUSEPORT, 1);
-#else
-    if (warn) {
-      /* no need to warn again if configured but support is not available, we already did for UDP */
-      warnlog("SO_REUSEPORT has been configured on local address '%s' but is not supported", cs->local.toStringWithPort());
+    if (!setReusePort(fd)) {
+      if (warn) {
+        /* no need to warn again if configured but support is not available, we already did for UDP */
+        warnlog("SO_REUSEPORT has been configured on local address '%s' but is not supported", cs->local.toStringWithPort());
+      }
     }
-#endif
   }
 
   /* Only set this on IPv4 UDP sockets.
@@ -2170,7 +2169,7 @@ try
 
   g_policy.setState(leastOutstandingPol);
   if(g_cmdLine.beClient || !g_cmdLine.command.empty()) {
-    setupLua(true, false, g_cmdLine.config);
+    setupLua(g_lua, true, false, g_cmdLine.config);
     if (clientAddress != ComboAddress())
       g_serverControl = clientAddress;
     doClient(g_serverControl, g_cmdLine.command);
@@ -2191,22 +2190,22 @@ try
   g_consoleACL.setState(consoleACL);
 
   if (g_cmdLine.checkConfig) {
-    setupLua(false, true, g_cmdLine.config);
+    setupLua(g_lua, false, true, g_cmdLine.config);
     // No exception was thrown
     infolog("Configuration '%s' OK!", g_cmdLine.config);
     _exit(EXIT_SUCCESS);
   }
 
-  auto todo=setupLua(false, false, g_cmdLine.config);
+  auto todo = setupLua(g_lua, false, false, g_cmdLine.config);
 
   auto localPools = g_pools.getCopy();
   {
     bool precompute = false;
-    if (g_policy.getLocal()->name == "chashed") {
+    if (g_policy.getLocal()->getName() == "chashed") {
       precompute = true;
     } else {
       for (const auto& entry: localPools) {
-        if (entry.second->policy != nullptr && entry.second->policy->name == "chashed") {
+        if (entry.second->policy != nullptr && entry.second->policy->getName() == "chashed") {
           precompute = true;
           break ;
         }

@@ -26,6 +26,7 @@
 #include <boost/archive/binary_oarchive.hpp>
 
 #include "auth-querycache.hh"
+#include "auth-domaincache.hh"
 #include "utility.hh"
 
 
@@ -120,12 +121,17 @@ bool UeberBackend::getDomainInfo(const DNSName &domain, DomainInfo &di, bool get
 
 bool UeberBackend::createDomain(const DNSName &domain, const DomainInfo::DomainKind kind, const vector<ComboAddress> &masters, const string &account)
 {
+  bool success = false;
   for(DNSBackend* mydb :  backends) {
     if(mydb->createDomain(domain, kind, masters, account)) {
-      return true;
+      success = true;
+      break;
     }
   }
-  return false;
+  if (success) {
+    updateDomainCache();
+  }
+  return success;
 }
 
 bool UeberBackend::doesDNSSEC()
@@ -273,9 +279,33 @@ void UeberBackend::reload()
   }
 }
 
+void UeberBackend::updateDomainCache() {
+  extern AuthDomainCache g_domainCache;
+  if (!g_domainCache.isEnabled()) {
+    return;
+  }
+  DTime dt;
+  dt.set();
+  cerr<<"UeberBackend filling domain cache"<<endl;
+
+  vector<tuple<DNSName, int>> domain_indices;
+
+  vector<DNSBackend*>::iterator begin = backends.begin();
+  for (vector<DNSBackend*>::iterator i = begin; i != backends.end(); ++i )
+  {
+    int backendIndex = i - begin;
+    vector<DomainInfo> domains;
+    (*i)->getAllDomains(&domains, false);
+    for(const auto& di: domains) {
+      domain_indices.push_back({di.zone, backendIndex});
+    }
+  }
+  g_domainCache.replace(domain_indices);
+  cerr<<"UeberBackend filling domain cache done "<<dt.udiff()<<endl;
+}
+
 void UeberBackend::rediscover(string *status)
 {
-  
   for ( vector< DNSBackend * >::iterator i = backends.begin(); i != backends.end(); ++i )
   {
     string tmpstr;
@@ -283,6 +313,8 @@ void UeberBackend::rediscover(string *status)
     if(status) 
       *status+=tmpstr + (i!=backends.begin() ? "\n" : "");
   }
+
+  updateDomainCache();
 }
 
 
@@ -313,11 +345,31 @@ bool UeberBackend::getAuth(const DNSName &target, const QType& qtype, SOAData* s
   // backend again for b.c.example.com., c.example.com. and example.com.
   // If a backend has no match it may respond with an empty qname.
 
+  extern AuthDomainCache g_domainCache;
+
   bool found = false;
   int cstat;
   DNSName shorter(target);
   vector<pair<size_t, SOAData> > bestmatch (backends.size(), make_pair(target.wirelength()+1, SOAData()));
   do {
+    if(cachedOk && g_domainCache.isEnabled()) {
+      int backendIndex{-1};
+      if (g_domainCache.getEntry(shorter, backendIndex)) {
+          // found domain, now ... look up the SOA record :(
+          if (!backends[backendIndex]->getAuth(shorter, sd)) {
+            throw PDNSException("getAuth() failed for existing domain '"+shorter.toLogString()+"'");
+          }
+          if (sd->qname.empty()) {
+            throw PDNSException("getAuth() returned empty SOA Name for '"+shorter.toLogString()+"'");
+          }
+          if (!shorter.isPartOf(sd->qname)) {
+            throw PDNSException("getAuth() returned an SOA for the wrong zone. Zone '"+sd->qname.toLogString()+"' is not part of '"+shorter.toLogString()+"'");
+          }
+          goto found;
+      }
+      // domain does not exist, try again with shorter name
+      continue;
+    }
 
     d_question.qtype = QType::SOA;
     d_question.qname = shorter;

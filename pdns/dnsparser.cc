@@ -40,17 +40,29 @@ public:
     // parse the input
     vector<string> parts;
     stringtok(parts, zone);
-    if(parts.size()!=3 && !(parts.size()==2 && equals(parts[1],"0")) )
-      throw MOADNSException("Unknown record was stored incorrectly, need 3 fields, got "+std::to_string(parts.size())+": "+zone );
-    const string& relevant=(parts.size() > 2) ? parts[2] : "";
-    unsigned int total=pdns_stou(parts[1]);
-    if(relevant.size() % 2 || relevant.size() / 2 != total)
+    // we need exactly 3 parts, except if the length field is set to 0 then we only need 2
+    if (parts.size() != 3 && !(parts.size() == 2 && equals(parts.at(1), "0"))) {
+      throw MOADNSException("Unknown record was stored incorrectly, need 3 fields, got " + std::to_string(parts.size()) + ": " + zone);
+    }
+
+    if (parts.at(0) != "\\#") {
+      throw MOADNSException("Unknown record was stored incorrectly, first part should be '\\#', got '" + parts.at(0) + "'");
+    }
+
+    const string& relevant = (parts.size() > 2) ? parts.at(2) : "";
+    unsigned int total = pdns_stou(parts.at(1));
+    if (relevant.size() % 2 || (relevant.size() / 2) != total) {
       throw MOADNSException((boost::format("invalid unknown record length: size not equal to length field (%d != 2 * %d)") % relevant.size() % total).str());
+    }
+
     string out;
-    out.reserve(total+1);
-    for(unsigned int n=0; n < total; ++n) {
+    out.reserve(total + 1);
+
+    for (unsigned int n = 0; n < total; ++n) {
       int c;
-      sscanf(relevant.c_str()+2*n, "%02x", &c);
+      if (sscanf(&relevant.at(2*n), "%02x", &c) != 1) {
+        throw MOADNSException("unable to read data at position " + std::to_string(2 * n) + " from unknown record of size " + std::to_string(relevant.size()));
+      }
       out.append(1, (char)c);
     }
 
@@ -94,7 +106,7 @@ shared_ptr<DNSRecordContent> DNSRecordContent::deserialize(const DNSName& qname,
 
   /* will look like: dnsheader, 5 bytes, encoded qname, dns record header, serialized data */
 
-  string encoded=qname.toDNSString();
+  const auto& encoded = qname.getStorage();
 
   packet.resize(sizeof(dnsheader) + 5 + encoded.size() + sizeof(struct dnsrecordheader) + serialized.size());
 
@@ -538,6 +550,107 @@ void PacketReader::xfrBlob(string& blob, int length)
   }
   else {
     blob.clear();
+  }
+}
+
+void PacketReader::xfrSvcParamKeyVals(set<SvcParam> &kvs) {
+  while (d_pos < (d_startrecordpos + d_recordlen)) {
+    if (d_pos + 2 > (d_startrecordpos + d_recordlen)) {
+      throw std::out_of_range("incomplete key");
+    }
+    uint16_t keyInt;
+    xfr16BitInt(keyInt);
+    auto key = static_cast<SvcParam::SvcParamKey>(keyInt);
+    uint16_t len;
+    xfr16BitInt(len);
+    
+    if (d_pos + len > (d_startrecordpos + d_recordlen)) {
+      throw std::out_of_range("record is shorter than SVCB lengthfield implies");
+    }
+
+    switch (key)
+    {
+    case SvcParam::mandatory: {
+      if (len % 2 != 0) {
+        throw std::out_of_range("mandatory SvcParam has invalid length");
+      }
+      if (len == 0) {
+        throw std::out_of_range("empty 'mandatory' values");
+      }
+      std::set<SvcParam::SvcParamKey> paramKeys;
+      size_t stop = d_pos + len;
+      while (d_pos < stop) {
+        uint16_t keyval;
+        xfr16BitInt(keyval);
+        paramKeys.insert(static_cast<SvcParam::SvcParamKey>(keyval));
+      }
+      kvs.insert(SvcParam(key, std::move(paramKeys)));
+      break;
+    }
+    case SvcParam::alpn: {
+      size_t stop = d_pos + len;
+      std::vector<string> alpns;
+      while (d_pos < stop) {
+        string alpn;
+        uint8_t alpnLen = 0;
+        xfr8BitInt(alpnLen);
+        if (alpnLen == 0) {
+          throw std::out_of_range("alpn length of 0");
+        }
+        xfrBlob(alpn, alpnLen);
+        alpns.push_back(alpn);
+      }
+      kvs.insert(SvcParam(key, std::move(alpns)));
+      break;
+    }
+    case SvcParam::no_default_alpn: {
+      if (len != 0) {
+        throw std::out_of_range("invalid length for no-default-alpn");
+      }
+      kvs.insert(SvcParam(key));
+      break;
+    }
+    case SvcParam::port: {
+      if (len != 2) {
+        throw std::out_of_range("invalid length for port");
+      }
+      uint16_t port;
+      xfr16BitInt(port);
+      kvs.insert(SvcParam(key, port));
+      break;
+    }
+    case SvcParam::ipv4hint: /* fall-through */
+    case SvcParam::ipv6hint: {
+      size_t addrLen = (key == SvcParam::ipv4hint ? 4 : 16);
+      if (len % addrLen != 0) {
+        throw std::out_of_range("invalid length for " + SvcParam::keyToString(key));
+      }
+      vector<ComboAddress> addresses;
+      auto stop = d_pos + len;
+      while (d_pos < stop)
+      {
+        ComboAddress addr;
+        xfrCAWithoutPort(key, addr);
+        addresses.push_back(addr);
+      }
+      kvs.insert(SvcParam(key, std::move(addresses)));
+      break;
+    }
+    case SvcParam::echconfig: {
+      std::string blob;
+      blob.reserve(len);
+      xfrBlobNoSpaces(blob, len);
+      kvs.insert(SvcParam(key, blob));
+      break;
+    }
+    default: {
+      std::string blob;
+      blob.reserve(len);
+      xfrBlob(blob, len);
+      kvs.insert(SvcParam(key, blob));
+      break;
+    }
+    }
   }
 }
 

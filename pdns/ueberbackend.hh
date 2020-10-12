@@ -131,6 +131,8 @@ public:
   void reload();
   bool searchRecords(const string &pattern, int maxResults, vector<DNSResourceRecord>& result);
   bool searchComments(const string &pattern, int maxResults, vector<Comment>& result);
+
+  void updateDomainCache();
 private:
   handle d_handle;
   vector<DNSZoneRecord> d_answers;

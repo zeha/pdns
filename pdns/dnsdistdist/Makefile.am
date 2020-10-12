@@ -26,10 +26,9 @@ htmlfiles.h: $(srcdir)/html/*
 	@mv $@.tmp $@
 
 dnsdist-lua-ffi-interface.inc: dnsdist-lua-ffi-interface.h
-	echo 'R"FFIContent(' > $@
-	cat $< >> $@
-	echo ')FFIContent"' >> $@
-
+	$(AM_V_GEN)echo 'R"FFIContent(' > $@
+	@cat $< >> $@
+	@echo ')FFIContent"' >> $@
 SRC_JS_FILES := $(wildcard src_js/*.js)
 MIN_JS_FILES := $(patsubst src_js/%.js,html/js/%.min.js,$(SRC_JS_FILES))
 
@@ -113,6 +112,7 @@ check-local:
 endif
 
 dnsdist-web.$(OBJEXT): htmlfiles.h
+dnsdist-lua-ffi.$(OBJEXT): dnsdist-lua-ffi-interface.inc
 
 dnsdist_SOURCES = \
 	ascii.hh \
@@ -179,6 +179,7 @@ dnsdist_SOURCES = \
 	misc.cc misc.hh \
 	mplexer.hh \
 	namespaces.hh \
+	packetcache.hh \
 	pdnsexception.hh \
 	protobuf.cc protobuf.hh \
 	proxy-protocol.cc proxy-protocol.hh \
@@ -190,6 +191,7 @@ dnsdist_SOURCES = \
 	snmp-agent.cc snmp-agent.hh \
 	sodcrypto.cc sodcrypto.hh \
 	sstuff.hh \
+	svc-records.cc svc-records.hh \
 	statnode.cc statnode.hh \
 	tcpiohandler.cc tcpiohandler.hh \
 	threadname.hh threadname.cc \
@@ -219,17 +221,23 @@ testrunner_SOURCES = \
 	test-iputils_hh.cc \
 	test-mplexer.cc \
 	test-proxy_protocol_cc.cc \
+	bpf-filter.cc bpf-filter.hh \
 	cachecleaner.hh \
 	circular_buffer.hh \
 	dnsdist.hh \
 	dnsdist-backend.cc \
 	dnsdist-cache.cc dnsdist-cache.hh \
 	dnsdist-dynblocks.cc dnsdist-dynblocks.hh \
+	dnsdist-dynbpf.cc dnsdist-dynbpf.hh \
 	dnsdist-ecs.cc dnsdist-ecs.hh \
 	dnsdist-kvs.cc dnsdist-kvs.hh \
 	dnsdist-lbpolicies.cc dnsdist-lbpolicies.hh \
+	dnsdist-lua-bindings.cc \
+	dnsdist-lua-bindings-dnsquestion.cc \
+	dnsdist-lua-bindings-kvs.cc \
 	dnsdist-lua-ffi.cc dnsdist-lua-ffi.hh \
 	dnsdist-lua-ffi-interface.h dnsdist-lua-ffi-interface.inc \
+	dnsdist-lua-vars.cc \
 	dnsdist-rings.hh \
 	dnsdist-xpf.cc dnsdist-xpf.hh \
 	dnscrypt.cc dnscrypt.hh \
@@ -253,6 +261,7 @@ testrunner_SOURCES = \
 	sodcrypto.cc \
 	sstuff.hh \
 	statnode.cc statnode.hh \
+	svc-records.cc svc-records.hh \
 	threadname.hh threadname.cc \
 	testrunner.cc \
 	uuid-utils.hh uuid-utils.cc \
@@ -436,11 +445,23 @@ endif
 if !HAVE_SYSTEMD_PRIVATE_TMP
 	$(AM_V_GEN)perl -ni -e 'print unless /^PrivateTmp/' $@
 endif
+if !HAVE_SYSTEMD_PRIVATE_USERS
+	$(AM_V_GEN)perl -ni -e 'print unless /^PrivateUsers/' $@
+endif
+if !HAVE_SYSTEMD_PROTECT_CLOCK
+	$(AM_V_GEN)perl -ni -e 'print unless /^ProtectClock/' $@
+endif
 if !HAVE_SYSTEMD_PROTECT_CONTROL_GROUPS
 	$(AM_V_GEN)perl -ni -e 'print unless /^ProtectControlGroups/' $@
 endif
 if !HAVE_SYSTEMD_PROTECT_HOME
 	$(AM_V_GEN)perl -ni -e 'print unless /^ProtectHome/' $@
+endif
+if !HAVE_SYSTEMD_PROTECT_HOSTNAME
+	$(AM_V_GEN)perl -ni -e 'print unless /^ProtectHostname/' $@
+endif
+if !HAVE_SYSTEMD_PROTECT_KERNEL_LOGS
+	$(AM_V_GEN)perl -ni -e 'print unless /^ProtectKernelLogs/' $@
 endif
 if !HAVE_SYSTEMD_PROTECT_KERNEL_MODULES
 	$(AM_V_GEN)perl -ni -e 'print unless /^ProtectKernelModules/' $@
@@ -459,6 +480,9 @@ if !HAVE_SYSTEMD_RESTRICT_NAMESPACES
 endif
 if !HAVE_SYSTEMD_RESTRICT_REALTIME
 	$(AM_V_GEN)perl -ni -e 'print unless /^RestrictRealtime/' $@
+endif
+if !HAVE_SYSTEMD_RESTRICT_SUIDSGID
+	$(AM_V_GEN)perl -ni -e 'print unless /^RestrictSUIDSGID/' $@
 endif
 if !HAVE_SYSTEMD_SYSTEM_CALL_ARCHITECTURES
 	$(AM_V_GEN)perl -ni -e 'print unless /^SystemCallArchitectures/' $@

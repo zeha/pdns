@@ -147,11 +147,19 @@ public:
       return true;
     }
 
+    bool wasHit() const
+    {
+      return (d_type != DNSFilterEngine::PolicyType::None && d_kind != DNSFilterEngine::PolicyKind::NoAction);
+    }
+
+    std::string getLogString() const;
     std::vector<DNSRecord> getCustomRecords(const DNSName& qname, uint16_t qtype) const;
     std::vector<DNSRecord> getRecords(const DNSName& qname) const;
 
     std::vector<std::shared_ptr<DNSRecordContent>> d_custom;
     std::shared_ptr<PolicyZoneData> d_zoneData{nullptr};
+    DNSName d_trigger;
+    string d_hit;
     /* Yup, we are currently using the same TTL for every record for a given name */
     int32_t d_ttl;
     PolicyKind d_kind;
@@ -230,11 +238,11 @@ public:
 
     void dump(FILE * fp) const;
 
-    void addClientTrigger(const Netmask& nm, Policy&& pol);
-    void addQNameTrigger(const DNSName& nm, Policy&& pol, bool ignoreDuplicate=false);
-    void addNSTrigger(const DNSName& dn, Policy&& pol);
-    void addNSIPTrigger(const Netmask& nm, Policy&& pol);
-    void addResponseTrigger(const Netmask& nm, Policy&& pol);
+    void addClientTrigger(const Netmask& nm, Policy&& pol, bool ignoreDuplicate = false);
+    void addQNameTrigger(const DNSName& nm, Policy&& pol, bool ignoreDuplicate = false);
+    void addNSTrigger(const DNSName& dn, Policy&& pol, bool ignoreDuplicate = false);
+    void addNSIPTrigger(const Netmask& nm, Policy&& pol, bool ignoreDuplicate = false);
+    void addResponseTrigger(const Netmask& nm, Policy&& pol, bool ignoreDuplicate = false);
 
     bool rmClientTrigger(const Netmask& nm, const Policy& pol);
     bool rmQNameTrigger(const DNSName& nm, const Policy& pol);
@@ -275,8 +283,15 @@ public:
       d_zoneData->d_priority = p;
     }
     
-  private:
     static DNSName maskToRPZ(const Netmask& nm);
+
+  private:
+    void addNameTrigger(std::unordered_map<DNSName,Policy>& map, const DNSName& n, Policy&& pol, bool ignoreDuplicate, PolicyType ptype);
+    void addNetmaskTrigger(NetmaskTree<Policy>& nmt, const Netmask& nm, Policy&& pol, bool ignoreDuplicate, PolicyType ptype);
+    bool rmNameTrigger(std::unordered_map<DNSName,Policy>& map, const DNSName& n, const Policy& pol);
+    bool rmNetmaskTrigger(NetmaskTree<Policy>& nmt, const Netmask& nm, const Policy& pol);
+
+  private:
     static bool findExactNamedPolicy(const std::unordered_map<DNSName, DNSFilterEngine::Policy>& polmap, const DNSName& qname, DNSFilterEngine::Policy& pol);
     static bool findNamedPolicy(const std::unordered_map<DNSName, DNSFilterEngine::Policy>& polmap, const DNSName& qname, DNSFilterEngine::Policy& pol);
     static void dumpNamedPolicy(FILE* fp, const DNSName& name, const Policy& pol);
@@ -337,17 +352,27 @@ public:
     }
   }
 
-  bool getQueryPolicy(const DNSName& qname, const ComboAddress& nm, const std::unordered_map<std::string,bool>& discardedPolicies, Policy& policy) const;
+  bool getQueryPolicy(const DNSName& qname, const std::unordered_map<std::string,bool>& discardedPolicies, Policy& policy) const;
+  bool getClientPolicy(const ComboAddress& ca, const std::unordered_map<std::string,bool>& discardedPolicies, Policy& policy) const;
   bool getProcessingPolicy(const DNSName& qname, const std::unordered_map<std::string,bool>& discardedPolicies, Policy& policy) const;
   bool getProcessingPolicy(const ComboAddress& address, const std::unordered_map<std::string,bool>& discardedPolicies, Policy& policy) const;
   bool getPostPolicy(const vector<DNSRecord>& records, const std::unordered_map<std::string,bool>& discardedPolicies, Policy& policy) const;
+  bool getPostPolicy(const DNSRecord& record, const std::unordered_map<std::string,bool>& discardedPolicies, Policy& policy) const;
 
   // A few convenience methods for the unit test code
-  Policy getQueryPolicy(const DNSName& qname, const ComboAddress& nm, const std::unordered_map<std::string,bool>& discardedPolicies, Priority p) const {
+  Policy getQueryPolicy(const DNSName& qname, const std::unordered_map<std::string,bool>& discardedPolicies, Priority p) const {
     Policy policy;
     policy.d_zoneData = std::make_shared<PolicyZoneData>();
     policy.d_zoneData->d_priority = p;
-    getQueryPolicy(qname, nm, discardedPolicies, policy);
+    getQueryPolicy(qname, discardedPolicies, policy);
+    return policy;
+  }
+
+  Policy getClientPolicy(const ComboAddress& ca, const std::unordered_map<std::string,bool>& discardedPolicies, Priority p) const {
+    Policy policy;
+    policy.d_zoneData = std::make_shared<PolicyZoneData>();
+    policy.d_zoneData->d_priority = p;
+    getClientPolicy(ca, discardedPolicies, policy);
     return policy;
   }
 

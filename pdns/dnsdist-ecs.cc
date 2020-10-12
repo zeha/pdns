@@ -505,7 +505,12 @@ bool parseEDNSOptions(DNSQuestion& dq)
 
   dq.ednsOptions = std::make_shared<std::map<uint16_t, EDNSOptionView> >();
 
-  if (ntohs(dq.dh->ancount) != 0 || ntohs(dq.dh->nscount) != 0 || (ntohs(dq.dh->arcount) != 0 && ntohs(dq.dh->arcount) != 1)) {
+  if (ntohs(dq.dh->arcount) == 0) {
+    /* nothing in additional so no EDNS */
+    return false;
+  }
+
+  if (ntohs(dq.dh->ancount) != 0 || ntohs(dq.dh->nscount) != 0 || ntohs(dq.dh->arcount) > 1) {
     return slowParseEDNSOptions(reinterpret_cast<const char*>(dq.dh), dq.len, dq.ednsOptions);
   }
 
@@ -942,7 +947,7 @@ bool setNegativeAndAdditionalSOA(DNSQuestion& dq, bool nxd, const DNSName& zone,
 
   dq.dh->arcount = htons(1);
 
-  if (g_addEDNSToSelfGeneratedResponses) {
+  if (hadEDNS) {
     /* now we need to add a new OPT record */
     return addEDNS(dq.dh, dq.len, dq.size, dnssecOK, g_PayloadSizeSelfGenAnswers, dq.ednsRCode);
   }

@@ -401,29 +401,9 @@ bool TCPNameserver::canDoAXFR(std::unique_ptr<DNSPacket>& q)
       return false;
     } else {
       getTSIGHashEnum(trc.d_algoName, q->d_tsig_algo);
-      if (q->d_tsig_algo == TSIG_GSS) {
-        GssContext gssctx(keyname);
-        if (!gssctx.getPeerPrincipal(q->d_peer_principal)) {
-          g_log<<Logger::Warning<<"Failed to extract peer principal from GSS context with keyname '"<<keyname<<"'"<<endl;
-        }
-      }
     }
 
     DNSSECKeeper dk(s_P->getBackend());
-
-    if (q->d_tsig_algo == TSIG_GSS) {
-      vector<string> princs;
-      s_P->getBackend()->getDomainMetadata(q->qdomain, "GSS-ALLOW-AXFR-PRINCIPAL", princs);
-      for(const std::string& princ :  princs) {
-        if (q->d_peer_principal == princ) {
-          g_log<<Logger::Warning<<"AXFR of domain '"<<q->qdomain<<"' allowed: TSIG signed request with authorized principal '"<<q->d_peer_principal<<"' and algorithm 'gss-tsig'"<<endl;
-          return true;
-        }
-      }
-      g_log<<Logger::Warning<<"AXFR of domain '"<<q->qdomain<<"' denied: TSIG signed request with principal '"<<q->d_peer_principal<<"' and algorithm 'gss-tsig' is not permitted"<<endl;
-      return false;
-    }
-
     if(!dk.TSIGGrantsAccess(q->qdomain, keyname)) {
       g_log<<Logger::Error<<"AXFR '"<<q->qdomain<<"' denied: key with name '"<<keyname<<"' and algorithm '"<<getTSIGAlgoName(q->d_tsig_algo)<<"' does not grant access to zone"<<endl;
       return false;
@@ -595,15 +575,14 @@ int TCPNameserver::doAXFR(const DNSName &target, std::unique_ptr<DNSPacket>& q, 
     DNSName algorithm=trc.d_algoName; // FIXME400: check
     if (algorithm == DNSName("hmac-md5.sig-alg.reg.int"))
       algorithm = DNSName("hmac-md5");
-    if (algorithm != DNSName("gss-tsig")) {
-      if(!db.getTSIGKey(tsigkeyname, &algorithm, &tsig64)) {
-        g_log<<Logger::Error<<"TSIG key '"<<tsigkeyname<<"' for domain '"<<target<<"' not found"<<endl;
-        return 0;
-      }
-      if (B64Decode(tsig64, tsigsecret) == -1) {
-        g_log<<Logger::Error<<"Unable to Base-64 decode TSIG key '"<<tsigkeyname<<"' for domain '"<<target<<"'"<<endl;
-        return 0;
-      }
+
+    if(!db.getTSIGKey(tsigkeyname, &algorithm, &tsig64)) {
+      g_log<<Logger::Error<<"TSIG key '"<<tsigkeyname<<"' for domain '"<<target<<"' not found"<<endl;
+      return 0;
+    }
+    if (B64Decode(tsig64, tsigsecret) == -1) {
+      g_log<<Logger::Error<<"Unable to Base-64 decode TSIG key '"<<tsigkeyname<<"' for domain '"<<target<<"'"<<endl;
+      return 0;
     }
   }
   
@@ -630,70 +609,73 @@ int TCPNameserver::doAXFR(const DNSName &target, std::unique_ptr<DNSPacket>& q, 
   
   typedef map<DNSName, NSECXEntry, CanonDNSNameCompare> nsecxrepo_t;
   nsecxrepo_t nsecxrepo;
-  
-  // this is where the DNSKEYs go  in
-  
-  DNSSECKeeper::keyset_t keys = dk.getKeys(target);
-  
-  DNSZoneRecord zrr;
-  
-  zrr.dr.d_name = target;
-  zrr.dr.d_ttl = sd.minimum;
-  zrr.auth = 1; // please sign!
-
-  string publishCDNSKEY, publishCDS;
-  dk.getPublishCDNSKEY(q->qdomain, publishCDNSKEY);
-  dk.getPublishCDS(q->qdomain, publishCDS);
   vector<DNSZoneRecord> cds, cdnskey;
-  DNSSECKeeper::keyset_t entryPoints = dk.getEntryPoints(q->qdomain);
-  set<uint32_t> entryPointIds;
-  for (auto const& value : entryPoints)
-    entryPointIds.insert(value.second.id);
+  DNSZoneRecord zrr;
 
-  for(const DNSSECKeeper::keyset_t::value_type& value :  keys) {
-    if (!value.second.published) {
-      continue;
-    }
-    zrr.dr.d_type = QType::DNSKEY;
-    zrr.dr.d_content = std::make_shared<DNSKEYRecordContent>(value.first.getDNSKEY());
-    DNSName keyname = NSEC3Zone ? DNSName(toBase32Hex(hashQNameWithSalt(ns3pr, zrr.dr.d_name))) : zrr.dr.d_name;
-    NSECXEntry& ne = nsecxrepo[keyname];
-    
-    ne.d_set.set(zrr.dr.d_type);
-    ne.d_ttl = sd.getNegativeTTL();
-    csp.submit(zrr);
+  if(securedZone && !presignedZone) {
+    // this is where the DNSKEYs go  in
+    DNSSECKeeper::keyset_t keys = dk.getKeys(target);
 
-    // generate CDS and CDNSKEY records
-    if(entryPointIds.count(value.second.id) > 0){
-      if(publishCDNSKEY == "1") {
-        zrr.dr.d_type=QType::CDNSKEY;
-        zrr.dr.d_content = std::make_shared<DNSKEYRecordContent>(value.first.getDNSKEY());
-        cdnskey.push_back(zrr);
+    zrr.dr.d_name = target;
+    zrr.dr.d_ttl = sd.minimum;
+    zrr.auth = 1; // please sign!
+
+    string publishCDNSKEY, publishCDS;
+    dk.getPublishCDNSKEY(q->qdomain, publishCDNSKEY);
+    dk.getPublishCDS(q->qdomain, publishCDS);
+    DNSSECKeeper::keyset_t entryPoints = dk.getEntryPoints(q->qdomain);
+    set<uint32_t> entryPointIds;
+    for (auto const& value : entryPoints)
+      entryPointIds.insert(value.second.id);
+
+    for(const DNSSECKeeper::keyset_t::value_type& value :  keys) {
+      if (!value.second.published) {
+        continue;
       }
+      zrr.dr.d_type = QType::DNSKEY;
+      zrr.dr.d_content = std::make_shared<DNSKEYRecordContent>(value.first.getDNSKEY());
+      DNSName keyname = NSEC3Zone ? DNSName(toBase32Hex(hashQNameWithSalt(ns3pr, zrr.dr.d_name))) : zrr.dr.d_name;
+      NSECXEntry& ne = nsecxrepo[keyname];
 
-      if(!publishCDS.empty()){
-        zrr.dr.d_type=QType::CDS;
-        vector<string> digestAlgos;
-        stringtok(digestAlgos, publishCDS, ", ");
-        for(auto const &digestAlgo : digestAlgos) {
-          zrr.dr.d_content=std::make_shared<DSRecordContent>(makeDSFromDNSKey(target, value.first.getDNSKEY(), pdns_stou(digestAlgo)));
-          cds.push_back(zrr);
+      ne.d_set.set(zrr.dr.d_type);
+      ne.d_ttl = sd.getNegativeTTL();
+      csp.submit(zrr);
+
+      // generate CDS and CDNSKEY records
+      if(entryPointIds.count(value.second.id) > 0){
+        if(publishCDNSKEY == "1") {
+          zrr.dr.d_type=QType::CDNSKEY;
+          zrr.dr.d_content = std::make_shared<DNSKEYRecordContent>(value.first.getDNSKEY());
+          cdnskey.push_back(zrr);
+        }
+
+        if(!publishCDS.empty()){
+          zrr.dr.d_type=QType::CDS;
+          vector<string> digestAlgos;
+          stringtok(digestAlgos, publishCDS, ", ");
+          for(auto const &digestAlgo : digestAlgos) {
+            zrr.dr.d_content=std::make_shared<DSRecordContent>(makeDSFromDNSKey(target, value.first.getDNSKEY(), pdns_stou(digestAlgo)));
+            cds.push_back(zrr);
+          }
         }
       }
     }
-  }
-  
-  if(::arg().mustDo("direct-dnskey")) {
-    sd.db->lookup(QType(QType::DNSKEY), target, sd.domain_id);
-    while(sd.db->get(zrr)) {
-      zrr.dr.d_ttl = sd.minimum;
-      csp.submit(zrr);
+
+    if(::arg().mustDo("direct-dnskey")) {
+      sd.db->lookup(QType(QType::DNSKEY), target, sd.domain_id);
+      while(sd.db->get(zrr)) {
+        zrr.dr.d_ttl = sd.minimum;
+        csp.submit(zrr);
+      }
     }
   }
 
   uint8_t flags;
 
   if(NSEC3Zone) { // now stuff in the NSEC3PARAM
+    zrr.dr.d_name = target;
+    zrr.dr.d_ttl = sd.minimum;
+    zrr.auth = 1;
     flags = ns3pr.d_flags;
     zrr.dr.d_type = QType::NSEC3PARAM;
     ns3pr.d_flags = 0;

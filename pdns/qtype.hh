@@ -95,6 +95,7 @@ public:
     A6=38,
     DNAME=39,
     OPT=41,
+    APL=42,
     DS=43,
     SSHFP=44,
     IPSECKEY=45,
@@ -110,6 +111,8 @@ public:
     CDS=59,
     CDNSKEY=60,
     OPENPGPKEY=61,
+    SVCB=64,
+    HTTPS=65,
     SPF=99,
     EUI48=108,
     EUI64=109,
@@ -194,6 +197,7 @@ private:
       qtype_insert("A6", 38);
       qtype_insert("DNAME", 39);
       qtype_insert("OPT", 41);
+      qtype_insert("APL", 42);
       qtype_insert("DS", 43);
       qtype_insert("SSHFP", 44);
       qtype_insert("IPSECKEY", 45);
@@ -209,6 +213,8 @@ private:
       qtype_insert("CDS", 59);
       qtype_insert("CDNSKEY", 60);
       qtype_insert("OPENPGPKEY", 61);
+      qtype_insert("SVCB", 64);
+      qtype_insert("HTTPS", 65);
       qtype_insert("SPF", 99);
       qtype_insert("EUI48", 108);
       qtype_insert("EUI64", 109);

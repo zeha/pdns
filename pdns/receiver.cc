@@ -586,7 +586,7 @@ int main(int argc, char **argv)
     DynListener::registerFunc("RESPSIZES", &DLRSizesHandler, "get histogram of response sizes");
     DynListener::registerFunc("REMOTES", &DLRemotesHandler, "get top remotes");
     DynListener::registerFunc("SET",&DLSettingsHandler, "set config variables", "<var> <value>");
-    DynListener::registerFunc("RETRIEVE",&DLNotifyRetrieveHandler, "retrieve slave domain", "<domain>");
+    DynListener::registerFunc("RETRIEVE",&DLNotifyRetrieveHandler, "retrieve slave domain", "<domain> [<ip>]");
     DynListener::registerFunc("CURRENT-CONFIG",&DLCurrentConfigHandler, "retrieve the current configuration", "[diff]");
     DynListener::registerFunc("LIST-ZONES",&DLListZones, "show list of zones", "[master|slave|native]");
     DynListener::registerFunc("TOKEN-LOGIN", &DLTokenLogin, "Login to a PKCS#11 token", "<module> <slot> <pin>");
@@ -608,6 +608,12 @@ int main(int argc, char **argv)
       } else {
         g_log<<Logger::Warning<<"Unable to get the hostname, NSID and id.server values will be empty: "<<stringerror()<<endl;
       }
+    }
+
+    g_domainCache.setTTL(::arg().asNum("domain-cache-ttl"));
+    {
+      UeberBackend B;
+      B.updateDomainCache();
     }
 
     UeberBackend::go();
@@ -636,7 +642,13 @@ int main(int argc, char **argv)
     exit(1);
   }
   
-  declareStats();
+  try {
+    declareStats();
+  }
+  catch(PDNSException &PE) {
+    g_log<<Logger::Error<<"Exiting because: "<<PE.reason<<endl;
+    exit(1);
+  }
   S.blacklist("special-memory-usage");
 
   DLOG(g_log<<Logger::Warning<<"Verbose logging in effect"<<endl);

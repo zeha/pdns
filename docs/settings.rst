@@ -628,6 +628,9 @@ Enable/Disable DNS update (RFC2136) support. See :doc:`dnsupdate` for more.
 -  Boolean
 -  Default: yes
 
+.. versionchanged:: 4.4.0
+  This setting has been removed
+
 Perform AAAA additional processing. This sends AAAA records in the
 ADDITIONAL section when sending a referral.
 
@@ -1305,7 +1308,7 @@ Seconds to store queries with an answer in the Query Cache. See :ref:`query-cach
   address family.
 
 -  IP addresses, separated by spaces or commas
--  Default: 0.0.0.0 ::
+-  Default: `0.0.0.0 ::`
 
 The IP addresses to use as a source address for sending queries. Useful if
 you have multiple IPs and PowerDNS is not bound to the IP address your
