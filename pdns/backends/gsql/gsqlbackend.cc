@@ -1846,7 +1846,13 @@ void GSQLBackend::extractRecord(SSqlStatement::row_t& row, DNSResourceRecord& r)
 
   r.qtype=row[3];
 
-  if (r.qtype==QType::MX || r.qtype==QType::SRV) {
+  if (DNSRecordContent::isUnknownType(row[3])) {
+    // seamless upgrade for previously unsupported but now implemented types.
+    UnknownRecordContent content(row[0]);
+    shared_ptr<DNSRecordContent> rc = DNSRecordContent::deserialize(r.qname, r.qtype.getCode(), content.serialize(r.qname));
+    r.content = rc->getZoneRepresentation();
+  }
+  else if (r.qtype==QType::MX || r.qtype==QType::SRV) {
     r.content.reserve(row[2].size() + row[0].size() + 1);
     r.content=row[2]+" "+row[0];
   }

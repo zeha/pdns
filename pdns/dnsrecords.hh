@@ -44,6 +44,29 @@
   uint16_t getType() const override { return QType::RNAME; }                                   \
   template<class Convertor> void xfrPacket(Convertor& conv, bool noDot=false);
 
+class UnknownRecordContent : public DNSRecordContent
+{
+public:
+  UnknownRecordContent(const DNSRecord& dr, PacketReader& pr)
+    : d_dr(dr)
+  {
+    pr.copyRecord(d_record, dr.d_clen);
+  }
+
+  UnknownRecordContent(const string& zone);
+
+  string getZoneRepresentation(bool noDot) const override;
+  void toPacket(DNSPacketWriter& pw) override;
+  uint16_t getType() const override
+  {
+    return d_dr.d_type;
+  }
+
+private:
+  DNSRecord d_dr;
+  vector<uint8_t> d_record;
+};
+
 class NAPTRRecordContent : public DNSRecordContent
 {
 public:
