@@ -52,7 +52,6 @@
 */
     
 #include "namespaces.hh"
-#include "namespaces.hh"
 
 class MOADNSException : public runtime_error
 {
@@ -247,13 +246,18 @@ public:
     getZmakermap().erase(key);
   }
 
+  static bool isUnknownType(const string& name)
+  {
+    return boost::starts_with(name, "TYPE") || boost::starts_with(name, "type");
+  }
+
   static uint16_t TypeToNumber(const string& name)
   {
     n2typemap_t::const_iterator iter = getN2Typemap().find(toUpper(name));
     if(iter != getN2Typemap().end())
       return iter->second.second;
     
-    if(boost::starts_with(name, "TYPE") || boost::starts_with(name, "type"))
+    if (isUnknownType(name))
       return (uint16_t) pdns_stou(name.substr(4));
     
     throw runtime_error("Unknown DNS type '"+name+"'");
