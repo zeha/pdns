@@ -56,7 +56,7 @@ AuthDomainCache::~AuthDomainCache()
   }
 }
 
-bool AuthDomainCache::getEntry(const DNSName &domain, int& backendIndex)
+bool AuthDomainCache::getEntry(const DNSName &domain, int& backendIndex, int& zoneId)
 {
   auto& mc = getMap(domain);
   bool found = false;
@@ -66,6 +66,7 @@ bool AuthDomainCache::getEntry(const DNSName &domain, int& backendIndex)
     if (iter != mc.d_map.end()) {
       found = true;
       backendIndex = iter->second.backendIndex;
+      zoneId = iter->second.zoneId;
     }
   }
 
@@ -87,7 +88,7 @@ void AuthDomainCache::clear()
   purgeLockedCollectionsVector(d_maps);
 }
 
-void AuthDomainCache::replace(const vector<tuple<DNSName, int>> &domain_indices)
+void AuthDomainCache::replace(const vector<tuple<DNSName, int, int>> &domain_indices)
 {
   if(!d_ttl)
     return;
@@ -101,10 +102,11 @@ void AuthDomainCache::replace(const vector<tuple<DNSName, int>> &domain_indices)
   dt.set();
 
   // build new maps
-  for(const tuple<DNSName, int>& tup: domain_indices) {
+  for(const tuple<DNSName, int, int>& tup: domain_indices) {
     const DNSName& domain = tup.get<0>();
     CacheValue val;
     val.backendIndex = tup.get<1>();
+    val.zoneId = tup.get<2>();
     auto& mc = newMaps[getMapIndex(domain)];
     mc.d_map.emplace(domain, val);
   }

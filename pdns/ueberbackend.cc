@@ -288,7 +288,7 @@ void UeberBackend::updateDomainCache() {
   dt.set();
   cerr<<"UeberBackend filling domain cache"<<endl;
 
-  vector<tuple<DNSName, int>> domain_indices;
+  vector<tuple<DNSName, int, int>> domain_indices;
 
   vector<DNSBackend*>::iterator begin = backends.begin();
   for (vector<DNSBackend*>::iterator i = begin; i != backends.end(); ++i )
@@ -297,7 +297,7 @@ void UeberBackend::updateDomainCache() {
     vector<DomainInfo> domains;
     (*i)->getAllDomains(&domains, false);
     for(const auto& di: domains) {
-      domain_indices.push_back({di.zone, backendIndex});
+      domain_indices.push_back({di.zone, backendIndex, di.id});
     }
   }
   g_domainCache.replace(domain_indices);
@@ -352,18 +352,20 @@ bool UeberBackend::getAuth(const DNSName &target, const QType& qtype, SOAData* s
   DNSName shorter(target);
   vector<pair<size_t, SOAData> > bestmatch (backends.size(), make_pair(target.wirelength()+1, SOAData()));
   do {
+    int zoneId{-1};
     if(cachedOk && g_domainCache.isEnabled()) {
       int backendIndex{-1};
-      if (g_domainCache.getEntry(shorter, backendIndex)) {
+      // TODO: backendIndex is actually useless right now
+      if (g_domainCache.getEntry(shorter, backendIndex, zoneId)) {
           // found domain, now ... look up the SOA record :(
-          if (!backends[backendIndex]->getAuth(shorter, sd)) {
-            throw PDNSException("getAuth() failed for existing domain '"+shorter.toLogString()+"'");
+          if (!getSOA(shorter, *sd, zoneId)) {
+            throw PDNSException("getSOA() failed for existing domain '"+shorter.toLogString()+"'");
           }
           if (sd->qname.empty()) {
-            throw PDNSException("getAuth() returned empty SOA Name for '"+shorter.toLogString()+"'");
+            throw PDNSException("getSOA() returned empty SOA Name for '"+shorter.toLogString()+"'");
           }
           if (!shorter.isPartOf(sd->qname)) {
-            throw PDNSException("getAuth() returned an SOA for the wrong zone. Zone '"+sd->qname.toLogString()+"' is not part of '"+shorter.toLogString()+"'");
+            throw PDNSException("getSOA() returned an SOA for the wrong zone. Zone '"+sd->qname.toLogString()+"' is not part of '"+shorter.toLogString()+"'");
           }
           goto found;
       }
@@ -373,7 +375,7 @@ bool UeberBackend::getAuth(const DNSName &target, const QType& qtype, SOAData* s
 
     d_question.qtype = QType::SOA;
     d_question.qname = shorter;
-    d_question.zoneId = -1;
+    d_question.zoneId = zoneId;
 
     // Check cache
     if(cachedOk && (d_cache_ttl || d_negcache_ttl)) {
@@ -438,7 +440,7 @@ bool UeberBackend::getAuth(const DNSName &target, const QType& qtype, SOAData* s
         DLOG(g_log<<Logger::Error<<"add pos cache entry: "<<sd->qname<<endl);
         d_question.qtype = QType::SOA;
         d_question.qname = sd->qname;
-        d_question.zoneId = -1;
+        d_question.zoneId = zoneId;
 
         DNSZoneRecord rr;
         rr.dr.d_name = sd->qname;
@@ -464,33 +466,30 @@ found:
   return found;
 }
 
-bool UeberBackend::getSOA(const DNSName &domain, SOAData &sd)
+bool UeberBackend::getSOA(const DNSName &domain, SOAData &sd, const int zoneId)
 {
-  d_question.qtype=QType::SOA;
-  d_question.qname=domain;
-  d_question.zoneId=-1;
-    
-  int cstat=cacheHas(d_question,d_answers);
-  if(cstat==0) { // negative
-    return false;
-  }
-  else if(cstat==1 && !d_answers.empty()) {
-    fillSOAData(d_answers[0],sd);
-    sd.domain_id=d_answers[0].domain_id;
-    sd.ttl=d_answers[0].dr.d_ttl;
-    sd.db = nullptr;
-    return true;
+  DNSZoneRecord zr;
+  bool found{false};
+
+  lookup(QType(QType::SOA), domain, zoneId, nullptr);
+  if (get(zr)) {
+    sd.qname = zr.dr.d_name;
+    fillSOAData(zr, sd);
+    found = true;
   }
 
-  // not found in neg. or pos. cache, look it up
-  return getSOAUncached(domain, sd);
+  // leave database handle in a consistent state
+  while (get(zr))
+    ;
+
+  return found;
 }
 
-bool UeberBackend::getSOAUncached(const DNSName &domain, SOAData &sd)
+bool UeberBackend::getSOAUncached(const DNSName &domain, SOAData &sd, const int zoneId)
 {
   d_question.qtype=QType::SOA;
   d_question.qname=domain;
-  d_question.zoneId=-1;
+  d_question.zoneId=zoneId;
 
   for(vector<DNSBackend *>::const_iterator i=backends.begin();i!=backends.end();++i)
     if((*i)->getSOA(domain, sd)) {

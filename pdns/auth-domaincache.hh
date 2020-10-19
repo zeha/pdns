@@ -36,9 +36,9 @@ public:
   AuthDomainCache(size_t mapsCount=1024);
   ~AuthDomainCache();
 
-  void replace(const vector<tuple<DNSName, int>> &domains);
+  void replace(const vector<tuple<DNSName, int, int>> &domains);
 
-  bool getEntry(const DNSName &domain, int &backendIndex);
+  bool getEntry(const DNSName &domain, int &backendIndex, int &zoneId);
 
   size_t size() { return *d_statnumentries; } //!< number of entries in the cache
 
@@ -58,6 +58,7 @@ private:
   struct CacheValue
   {
     int backendIndex{-1};
+    int zoneId{-1};
   };
 
   typedef std::unordered_map<DNSName, CacheValue, std::hash<DNSName>> cmap_t;
