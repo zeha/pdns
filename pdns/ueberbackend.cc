@@ -297,7 +297,7 @@ void UeberBackend::updateDomainCache() {
     vector<DomainInfo> domains;
     (*i)->getAllDomains(&domains, false);
     for(const auto& di: domains) {
-      domain_indices.push_back({di.zone, backendIndex, di.id});
+      domain_indices.push_back({di.zone, backendIndex, (int)di.id});  // this cast should not be necessary
     }
   }
   g_domainCache.replace(domain_indices);
