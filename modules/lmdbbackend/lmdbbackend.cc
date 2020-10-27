@@ -803,14 +803,40 @@ bool LMDBBackend::get(DNSResourceRecord& rr)
   return true;
 }
 
+// Find SOA record and fill out di.serial and di.zoneContentAvailable
+bool LMDBBackend::fillDomainInfoExtra(DomainInfo& di)
+{
+  auto txn2 = getRecordsROTransaction(di.id);
+  compoundOrdername co;
+  MDBOutVal val;
+  if(!txn2->txn->get(txn2->db->dbi, co(di.id, g_rootdnsname, QType::SOA), val)) {
+    di.zoneContentAvailable = true;
+
+    DNSResourceRecord rr;
+    serFromString(val.get<string_view>(), rr);
+    if (rr.content.size() >= 5 * sizeof(uint32_t)) {
+      uint32_t serial = *reinterpret_cast<uint32_t*>(&rr.content[rr.content.size() - (5 * sizeof(uint32_t))]);
+      di.serial = ntohl(serial);
+    }
+    return true;
+  }
+  return false;
+}
 
 bool LMDBBackend::getDomainInfo(const DNSName &domain, DomainInfo &di, bool getSerial)
 {
-  auto txn = d_tdomains->getROTransaction();
+  {
+    auto txn = d_tdomains->getROTransaction();
 
-  if(!(di.id=txn.get<0>(domain, di)))
-    return false;
-  di.backend = this;
+    if(!(di.id=txn.get<0>(domain, di)))
+      return false;
+    di.backend = this;
+  }
+
+  if (getSerial) {
+    fillDomainInfoExtra(di);
+  }
+
   return true;
 }
 
@@ -906,24 +932,12 @@ bool LMDBBackend::createDomain(const DNSName &domain, const DomainInfo::DomainKi
 
 void LMDBBackend::getAllDomains(vector<DomainInfo> *domains, bool include_disabled)
 {
-  compoundOrdername co;
-  MDBOutVal val;
   domains->clear();
   auto txn = d_tdomains->getROTransaction();
   for(auto iter = txn.begin(); iter != txn.end(); ++iter) {
     DomainInfo di=*iter;
     di.id = iter.getID();
-
-    auto txn2 = getRecordsROTransaction(iter.getID());
-    if(!txn2->txn->get(txn2->db->dbi, co(di.id, g_rootdnsname, QType::SOA), val)) {
-      DNSResourceRecord rr;
-      serFromString(val.get<string_view>(), rr);
-
-      if(rr.content.size() >= 5 * sizeof(uint32_t)) {
-        uint32_t serial = *reinterpret_cast<uint32_t*>(&rr.content[rr.content.size() - (5 * sizeof(uint32_t))]);
-        di.serial = ntohl(serial);
-      }
-    } else if(!include_disabled) {
+    if (!fillDomainInfoExtra(di) && !include_disabled) {
       continue;
     }
     di.backend = this;
@@ -937,7 +951,7 @@ void LMDBBackend::getUnfreshSlaveInfos(vector<DomainInfo>* domains)
   domains->clear();
   auto txn = d_tdomains->getROTransaction();
 
-  time_t now = time(0);
+  time_t now = time(nullptr);
   for(auto iter = txn.begin(); iter != txn.end(); ++iter) {
     if(iter->kind != DomainInfo::Slave)
       continue;
@@ -945,27 +959,28 @@ void LMDBBackend::getUnfreshSlaveInfos(vector<DomainInfo>* domains)
     auto txn2 = getRecordsROTransaction(iter.getID());
     compoundOrdername co;
     MDBOutVal val;
-    uint32_t serial = 0;
+    DomainInfo di=*iter;
     if(!txn2->txn->get(txn2->db->dbi, co(iter.getID(), g_rootdnsname, QType::SOA), val)) {
+      di.zoneContentAvailable = true;
+
       DNSResourceRecord rr;
       serFromString(val.get<string_view>(), rr);
+
       struct soatimes st;
- 
       memcpy(&st, &rr.content[rr.content.size()-sizeof(soatimes)], sizeof(soatimes));
 
       if((time_t)(iter->last_check + ntohl(st.refresh)) >= now) { // still fresh
         continue; // try next domain
       }
       //      cout << di.last_check <<" + " <<sdata.refresh<<" > = " << now << "\n";
-      serial = ntohl(st.serial);
+      di.serial = ntohl(st.serial);
     }
     else {
       //      cout << "Could not find SOA for "<<iter->zone<<" with id "<<iter.getID()<<endl;
-      serial=0;  
+      di.serial = 0;
+      di.zoneContentAvailable = false;
     }
-    DomainInfo di=*iter;    
     di.id = iter.getID();
-    di.serial = serial;
     di.backend = this;
 
     domains->push_back(di);

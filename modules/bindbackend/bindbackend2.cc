@@ -441,7 +441,8 @@ bool Bind2Backend::getDomainInfo(const DNSName& domain, DomainInfo &di, bool get
       sd.serial=0;
 
       getSOA(bbd.d_name,sd); // we might not *have* a SOA yet
-      di.serial=sd.serial;
+      di.serial = sd.serial;
+      di.zoneContentAvailable = true;
     }
     catch(...){}
   }

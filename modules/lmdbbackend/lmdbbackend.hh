@@ -257,6 +257,8 @@ private:
   int genChangeDomain(uint32_t id, std::function<void(DomainInfo&)> func);
   void deleteDomainRecords(RecordsRWTransaction& txn, uint32_t domain_id, uint16_t qtype=QType::ANY);
 
+  bool fillDomainInfoExtra(DomainInfo& di);
+
   bool upgradeToSchemav3();
   
   bool get_list(DNSZoneRecord &rr);
