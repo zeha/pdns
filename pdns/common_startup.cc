@@ -672,7 +672,7 @@ void mainthread()
   uint32_t secpollSince = 0;
   uint32_t domainCacheUpdateSince = 0;
   for(;;) {
-    const uint32_t slept = std::min(secpollInterval, g_domainCache.getTTL());
+    const uint32_t slept = g_domainCache.getTTL() == 0 ? secpollInterval : std::min(secpollInterval, g_domainCache.getTTL());
     sleep(slept);  // if any signals arrive, we might run more often than expected.
 
     domainCacheUpdateSince += slept;
@@ -691,7 +691,7 @@ void mainthread()
     }
 
     secpollSince += slept;
-    if (secpollInterval >= secpollSince) {
+    if (secpollSince >= secpollInterval) {
       secpollSince = 0;
       try {
         doSecPoll(false);
