@@ -369,9 +369,9 @@ std::shared_ptr<SyncRes::domainmap_t> parseAuthAndForwards()
     stringtok(parts, ::arg()[option_names[n]], " ,\t\n\r");
     for(const auto& iter : parts) {
       SyncRes::AuthDomain ad;
-      if ((*iter).find('=') == string::npos)
-        throw PDNSException("Error parsing '" + *iter + "', missing =");
-      pair<string,string> headers=splitField(*iter, '=');
+      if (iter.find('=') == string::npos)
+        throw PDNSException("Error parsing '" + iter + "', missing =");
+      pair<string,string> headers = splitField(iter, '=');
       boost::trim(headers.first);
       boost::trim(headers.second);
       // headers.first=toCanonic("", headers.first);
