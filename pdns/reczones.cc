@@ -381,11 +381,11 @@ std::shared_ptr<SyncRes::domainmap_t> parseAuthAndForwards()
         ZoneParserTNG zpt(headers.second, DNSName(headers.first));
         zpt.setMaxGenerateSteps(::arg().asNum("max-generate-steps"));
         DNSResourceRecord rr;
-	DNSRecord dr;
+        DNSRecord dr;
         while(zpt.get(rr)) {
           try {
-	    dr=DNSRecord(rr);
-	    dr.d_place=DNSResourceRecord::ANSWER;
+            dr=DNSRecord(rr);
+            dr.d_place=DNSResourceRecord::ANSWER;
           }
           catch(std::exception &e) {
             throw PDNSException("Error parsing record '"+rr.qname.toLogString()+"' of type "+rr.qtype.getName()+" in zone '"+headers.first+"' from file '"+headers.second+"': "+e.what());
@@ -488,10 +488,10 @@ std::shared_ptr<SyncRes::domainmap_t> parseAuthAndForwards()
         
         for(unsigned int n=1; n < parts.size(); ++n) {
           if(searchSuffix.empty() || parts[n].find('.') != string::npos)
-	    makeNameToIPZone(newMap, DNSName(parts[n]), parts[0]);
+            makeNameToIPZone(newMap, DNSName(parts[n]), parts[0]);
           else {
-	    DNSName canonic=toCanonic(DNSName(searchSuffix), parts[n]); /// XXXX DNSName pain
-	    if(canonic != DNSName(parts[n])) {   // XXX further DNSName pain
+            DNSName canonic=toCanonic(DNSName(searchSuffix), parts[n]); /// XXXX DNSName pain
+            if(canonic != DNSName(parts[n])) {   // XXX further DNSName pain
               makeNameToIPZone(newMap, canonic, parts[0]);
             }
           }
