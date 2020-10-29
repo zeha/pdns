@@ -362,13 +362,12 @@ std::shared_ptr<SyncRes::domainmap_t> parseAuthAndForwards()
 
   auto newMap = std::make_shared<SyncRes::domainmap_t>();
 
-  typedef vector<string> parts_t;
-  parts_t parts;  
+  vector<string> parts;
   const char *option_names[3]={"auth-zones", "forward-zones", "forward-zones-recurse"};
   for(int n=0; n < 3 ; ++n ) {
     parts.clear();
     stringtok(parts, ::arg()[option_names[n]], " ,\t\n\r");
-    for(parts_t::const_iterator iter = parts.begin(); iter != parts.end(); ++iter) {
+    for(const auto& iter : parts) {
       SyncRes::AuthDomain ad;
       if ((*iter).find('=') == string::npos)
         throw PDNSException("Error parsing '" + *iter + "', missing =");
