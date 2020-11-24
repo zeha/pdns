@@ -1268,7 +1268,7 @@ bool GSQLBackend::superMasterBackend(const string &ip, const DNSName &domain, co
   return false;
 }
 
-bool GSQLBackend::createDomain(const DNSName &domain, const DomainInfo::DomainKind kind, const vector<ComboAddress> &masters, const string &account)
+bool GSQLBackend::createDomain(const DNSName &domain, const DomainInfo::DomainKind kind, const vector<ComboAddress> &masters, const string &account, int* zoneId)
 {
   vector<string> masters_s;
   for (const auto& master : masters) {
@@ -1285,6 +1285,20 @@ bool GSQLBackend::createDomain(const DNSName &domain, const DomainInfo::DomainKi
       bind("account", account)->
       execute()->
       reset();
+
+    if (zoneId != nullptr) {
+      // XXX: needs its own stmt as godbc has a table name in it
+      d_GetLastInsertedKeyIdQuery_stmt->execute();
+      if (!d_GetLastInsertedKeyIdQuery_stmt->hasNextRow()) {
+        return false;
+      }
+      SSqlStatement::row_t row;
+      d_GetLastInsertedKeyIdQuery_stmt->nextRow(row);
+      ASSERT_ROW_COLUMNS("get-last-inserted-key-id-query", row, 1);
+      *zoneId = std::stoi(row[0]);
+      d_GetLastInsertedKeyIdQuery_stmt->reset();
+    }
+    return true;
   }
   catch(SSqlException &e) {
     throw PDNSException("Database error trying to insert new domain '"+domain.toLogString()+"': "+ e.txtReason());
@@ -1318,7 +1332,7 @@ bool GSQLBackend::createSlaveDomain(const string &ip, const DNSName &domain, con
         masters = tmp;
       }
     }
-    createDomain(domain, DomainInfo::Slave, masters, account);
+    createDomain(domain, DomainInfo::Slave, masters, account, nullptr);
   }
   catch(SSqlException &e) {
     throw PDNSException("Database error trying to insert new slave domain '"+domain.toLogString()+"': "+ e.txtReason());

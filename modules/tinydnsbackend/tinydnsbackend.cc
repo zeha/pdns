@@ -165,7 +165,15 @@ void TinyDNSBackend::getAllDomains(vector<DomainInfo> *domains, bool include_dis
   DNSResourceRecord rr;
   std::unordered_set<DNSName> dupcheck;
 
-  while (get(rr)) {
+  while (true) {
+    try {
+      if (!get(rr))
+        break;
+    }
+    catch (...) {
+      // Error already logged by get().
+      continue;
+    }
     if (rr.qtype.getCode() == QType::SOA && dupcheck.insert(rr.qname).second) {
       SOAData sd;
       fillSOAData(rr.content, sd);
