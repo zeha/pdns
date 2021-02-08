@@ -4,7 +4,7 @@ Maintainer: PowerDNS.COM BV <powerdns.support@powerdns.com>
 Priority: optional
 Standards-Version: 4.5.1
 Build-Conflicts: libboost-context-dev [mips mipsel]
-Build-Depends: debhelper-compat (= 13),
+Build-Depends: debhelper-compat (= 10),
                libboost-context-dev [amd64 arm64 armel armhf i386 ppc64el],
                libboost-dev,
                libboost-program-options-dev,
