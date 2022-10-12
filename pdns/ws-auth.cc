@@ -643,7 +643,8 @@ static void extractDomainInfoFromDocument(const Json& document, boost::optional<
   }
 }
 
-static void updateDomainSettingsFromDocument(UeberBackend& B, const DomainInfo& di, const DNSName& zonename, const Json& document, bool rectifyTransaction=true) {
+// Must be called within backend transaction.
+static void updateDomainSettingsFromDocument(UeberBackend& B, const DomainInfo& di, const DNSName& zonename, const Json& document) {
   boost::optional<DomainInfo::DomainKind> kind;
   boost::optional<vector<ComboAddress>> masters;
   boost::optional<string> account;
@@ -783,7 +784,7 @@ static void updateDomainSettingsFromDocument(UeberBackend& B, const DomainInfo& 
     if (api_rectify == "1") {
       string info;
       string error_msg;
-      if (!dk.rectifyZone(zonename, error_msg, info, rectifyTransaction)) {
+      if (!dk.rectifyZone(zonename, error_msg, info, false)) {
         throw ApiException("Failed to rectify '" + zonename.toString() + "' " + error_msg);
       }
     }
@@ -1821,7 +1822,7 @@ static void apiServerZones(HttpRequest* req, HttpResponse* resp) {
       di.backend->feedComment(c);
     }
 
-    updateDomainSettingsFromDocument(B, di, zonename, document, false);
+    updateDomainSettingsFromDocument(B, di, zonename, document);
 
     di.backend->commitTransaction();
 
@@ -1888,7 +1889,7 @@ static void apiServerZoneDetail(HttpRequest* req, HttpResponse* resp) {
     // update domain settings
 
     di.backend->startTransaction(zonename, -1);
-    updateDomainSettingsFromDocument(B, di, zonename, req->json(), false);
+    updateDomainSettingsFromDocument(B, di, zonename, req->json());
     di.backend->commitTransaction();
 
     resp->body = "";
