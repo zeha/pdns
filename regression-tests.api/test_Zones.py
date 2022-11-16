@@ -81,6 +81,7 @@ class Zones(ApiTestCase):
     def test_list_zones_without_dnssec(self):
         self._test_list_zones(False)
 
+
 class AuthZonesHelperMixin(object):
     def create_zone(self, name=None, **kwargs):
         if name is None:
@@ -95,7 +96,7 @@ class AuthZonesHelperMixin(object):
                 del payload[k]
             else:
                 payload[k] = v
-        print("sending", payload)
+        print("Create zone", name, "with:", payload)
         r = self.session.post(
             self.url("/api/v1/servers/localhost/zones"),
             data=json.dumps(payload),
@@ -106,6 +107,24 @@ class AuthZonesHelperMixin(object):
         print("reply", reply)
         return name, payload, reply
 
+    def put_zone(self, api_zone_id, payload, expect_error=None):
+        print("PUT zone", api_zone_id, "with:", payload)
+        r = self.session.put(
+            self.url("/api/v1/servers/localhost/zones/" + api_zone_id),
+            data=json.dumps(payload),
+            headers={'content-type': 'application/json'})
+
+        print("reply status code:", r.status_code)
+        if expect_error:
+            self.assertEqual(r.status_code, 422)
+            reply = r.json()
+            if expect_error is True:
+                pass
+            else:
+                self.assertIn(expect_error, reply['error'])
+        else:
+            # expect success (no content)
+            self.assertEqual(r.status_code, 204)
 
 @unittest.skipIf(not is_auth(), "Not applicable")
 class AuthZones(ApiTestCase, AuthZonesHelperMixin):
@@ -485,8 +504,7 @@ class AuthZones(ApiTestCase, AuthZonesHelperMixin):
         name = unique_zone_name()
         name, payload, data = self.create_zone(dnssec=True)
 
-        self.session.put(self.url("/api/v1/servers/localhost/zones/" + name),
-                         data=json.dumps({'dnssec': False}))
+        self.put_zone(name, {'dnssec': False})
         r = self.session.get(self.url("/api/v1/servers/localhost/zones/" + name))
 
         zoneinfo = r.json()
@@ -560,8 +578,7 @@ class AuthZones(ApiTestCase, AuthZonesHelperMixin):
         """
         name, payload, data = self.create_zone(dnssec=True,
                                                nsec3param='1 0 1 ab')
-        self.session.put(self.url("/api/v1/servers/localhost/zones/" + name),
-                         data=json.dumps({'nsec3param': ''}))
+        self.put_zone(name, {'nsec3param': ''})
         r = self.session.get(
             self.url("/api/v1/servers/localhost/zones/" + name))
         data = r.json()
@@ -574,20 +591,14 @@ class AuthZones(ApiTestCase, AuthZonesHelperMixin):
         Create a non dnssec zone and set an empty "nsec3param"
         """
         name, payload, data = self.create_zone(dnssec=False)
-        r = self.session.put(self.url("/api/v1/servers/localhost/zones/" + name),
-                             data=json.dumps({'nsec3param': ''}))
-
-        self.assertEqual(r.status_code, 204)
+        self.put_zone(name, {'nsec3param': ''})
 
     def test_create_zone_without_dnssec_set_nsec3parm(self):
         """
         Create a non dnssec zone and set "nsec3param"
         """
         name, payload, data = self.create_zone(dnssec=False)
-        r = self.session.put(self.url("/api/v1/servers/localhost/zones/" + name),
-                             data=json.dumps({'nsec3param': '1 0 1 ab'}))
-
-        self.assertEqual(r.status_code, 422)
+        self.put_zone(name, {'nsec3param': '1 0 1 ab'}, expect_error=True)
 
     def test_create_zone_dnssec_serial(self):
         """
@@ -599,8 +610,7 @@ class AuthZones(ApiTestCase, AuthZonesHelperMixin):
         soa_serial = get_first_rec(data, name, 'SOA')['content'].split(' ')[2]
         self.assertEqual(soa_serial[-2:], '01')
 
-        self.session.put(self.url("/api/v1/servers/localhost/zones/" + name),
-                         data=json.dumps({'dnssec': True}))
+        self.put_zone(name, {'dnssec': True})
         r = self.session.get(self.url("/api/v1/servers/localhost/zones/" + name))
 
         data = r.json()
@@ -609,8 +619,7 @@ class AuthZones(ApiTestCase, AuthZonesHelperMixin):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(soa_serial[-2:], '02')
 
-        self.session.put(self.url("/api/v1/servers/localhost/zones/" + name),
-                         data=json.dumps({'dnssec': False}))
+        self.put_zone(name, {'dnssec': False})
         r = self.session.get(self.url("/api/v1/servers/localhost/zones/" + name))
 
         data = r.json()
@@ -1113,11 +1122,7 @@ $ORIGIN %NAME%
             'soa_edit_api': 'EPOCH',
             'soa_edit': 'EPOCH'
         }
-        r = self.session.put(
-            self.url("/api/v1/servers/localhost/zones/" + name),
-            data=json.dumps(payload),
-            headers={'content-type': 'application/json'})
-        self.assert_success(r)
+        self.put_zone(name, payload)
         data = self.session.get(self.url("/api/v1/servers/localhost/zones/" + name)).json()
         for k in payload.keys():
             self.assertIn(k, data)
@@ -1129,11 +1134,7 @@ $ORIGIN %NAME%
             'soa_edit_api': '',
             'soa_edit': ''
         }
-        r = self.session.put(
-            self.url("/api/v1/servers/localhost/zones/" + name),
-            data=json.dumps(payload),
-            headers={'content-type': 'application/json'})
-        self.assert_success(r)
+        self.put_zone(name, payload)
         data = self.session.get(self.url("/api/v1/servers/localhost/zones/" + name)).json()
         for k in payload.keys():
             self.assertIn(k, data)
@@ -2200,10 +2201,7 @@ $ORIGIN %NAME%
     def test_explicit_rectify_slave(self):
         # Some users want to move a zone to kind=Slave and then rectify, without a re-transfer.
         name, _, data = self.create_zone = self.create_zone(api_rectify=False, dnssec=True, nsec3param='1 0 1 ab')
-        r = self.session.put(self.url("/api/v1/servers/localhost/zones/" + data['id']),
-            data=json.dumps({'kind': 'Slave'}),
-            headers={'content-type': 'application/json'})
-        self.assertEqual(r.status_code, 204)
+        self.put_zone(data['id'], {'kind': 'Slave'})
         r = self.session.put(self.url("/api/v1/servers/localhost/zones/" + data['id'] + "/rectify"))
         self.assertEqual(r.status_code, 200)
         if not is_auth_lmdb():
@@ -2291,11 +2289,7 @@ $ORIGIN %NAME%
         payload = {
             'master_tsig_key_ids': [keyname]
         }
-        r = self.session.put(self.url('/api/v1/servers/localhost/zones/' + name),
-                             data=json.dumps(payload),
-                             headers={'content-type': 'application/json'})
-        self.assertEqual(r.status_code, 422)
-        self.assertIn('A TSIG key with the name', r.json()['error'])
+        self.put_zone(name, payload, expect_error='A TSIG key with the name')
 
     def test_put_slave_tsig_key_ids_non_existent(self):
         name = unique_zone_name()
@@ -2304,11 +2298,7 @@ $ORIGIN %NAME%
         payload = {
             'slave_tsig_key_ids': [keyname]
         }
-        r = self.session.put(self.url('/api/v1/servers/localhost/zones/' + name),
-                             data=json.dumps(payload),
-                             headers={'content-type': 'application/json'})
-        self.assertEqual(r.status_code, 422)
-        self.assertIn('A TSIG key with the name', r.json()['error'])
+        self.put_zone(name, payload, expect_error='A TSIG key with the name')
 
 
 @unittest.skipIf(not is_auth(), "Not applicable")
@@ -2356,11 +2346,7 @@ class AuthRootZone(ApiTestCase, AuthZonesHelperMixin):
             'soa_edit_api': 'EPOCH',
             'soa_edit': 'EPOCH'
         }
-        r = self.session.put(
-            self.url("/api/v1/servers/localhost/zones/" + zone_id),
-            data=json.dumps(payload),
-            headers={'content-type': 'application/json'})
-        self.assert_success(r)
+        self.put_zone(zone_id, payload)
         data = self.session.get(self.url("/api/v1/servers/localhost/zones/" + zone_id)).json()
         for k in payload.keys():
             self.assertIn(k, data)
@@ -2371,11 +2357,7 @@ class AuthRootZone(ApiTestCase, AuthZonesHelperMixin):
             'soa_edit_api': '',
             'soa_edit': ''
         }
-        r = self.session.put(
-            self.url("/api/v1/servers/localhost/zones/" + zone_id),
-            data=json.dumps(payload),
-            headers={'content-type': 'application/json'})
-        self.assert_success(r)
+        self.put_zone(zone_id, payload)
         data = self.session.get(self.url("/api/v1/servers/localhost/zones/" + zone_id)).json()
         for k in payload.keys():
             self.assertIn(k, data)
