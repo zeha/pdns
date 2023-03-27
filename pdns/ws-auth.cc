@@ -1958,7 +1958,6 @@ static void apiServerZoneDetail(HttpRequest* req, HttpResponse* resp) {
 
         if (rr.qtype.getCode() == QType::SOA && rr.qname==zonename) {
           haveSoa = true;
-          increaseSOARecord(rr, soaEditApiKind, soaEditKind);
         }
       }
 
@@ -1985,6 +1984,7 @@ static void apiServerZoneDetail(HttpRequest* req, HttpResponse* resp) {
       di.backend->startTransaction(zonename, -1);
     }
 
+    // updateDomainSettingsFromDocument will rectify the zone and update SOA serial.
     updateDomainSettingsFromDocument(B, di, zonename, document, zoneWasModified);
     di.backend->commitTransaction();
 
