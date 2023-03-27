@@ -1980,6 +1980,8 @@ static void apiServerZoneDetail(HttpRequest* req, HttpResponse* resp) {
     updateDomainSettingsFromDocument(B, di, zonename, document, zoneWasModified);
     di.backend->commitTransaction();
 
+    purgeAuthCaches(zonename.toString() + "$");
+
     resp->body = "";
     resp->status = 204; // No Content, but indicate success
     return;
