@@ -1600,10 +1600,7 @@ std::unique_ptr<DNSPacket> PacketHandler::doQuestion(DNSPacket& p)
                 rr.scopeMask = p.getRealRemote().getBits(); // this makes sure answer is a specific as your question
                 rrset.push_back(rr);
               }
-              if(rec->d_type == QType::CNAME && p.qtype.getCode() != QType::CNAME)
-                weRedirected = true;
-              else
-                weDone = true;
+              weDone = true;
             }
           }
           catch(std::exception &e) {
@@ -1631,7 +1628,7 @@ std::unique_ptr<DNSPacket> PacketHandler::doQuestion(DNSPacket& p)
         weHaveUnauth=true;
 
       if(rr.dr.d_type == QType::CNAME && p.qtype.getCode() != QType::CNAME)
-        weRedirected=true;
+        weDone=true;
 
       if (DP && rr.dr.d_type == QType::ALIAS && (p.qtype.getCode() == QType::A || p.qtype.getCode() == QType::AAAA || p.qtype.getCode() == QType::ANY) && !d_dk.isPresigned(d_sd.qname)) {
         if (!d_doExpandALIAS) {
@@ -1737,17 +1734,7 @@ std::unique_ptr<DNSPacket> PacketHandler::doQuestion(DNSPacket& p)
       goto sendit;
     }
 
-    if(weRedirected) {
-      for(auto& loopRR: rrset) {
-        if(loopRR.dr.d_type == QType::CNAME) {
-          r->addRecord(DNSZoneRecord(loopRR));
-          target = getRR<CNAMERecordContent>(loopRR.dr)->getTarget();
-          retargetcount++;
-          goto retargeted;
-        }
-      }
-    }
-    else if(weDone) {
+    if(weDone) {
       bool haveRecords = false;
       bool presigned = d_dk.isPresigned(d_sd.qname);
       for(const auto& loopRR: rrset) {
@@ -1765,6 +1752,15 @@ std::unique_ptr<DNSPacket> PacketHandler::doQuestion(DNSPacket& p)
         if ((p.qtype.getCode() == QType::ANY || loopRR.dr.d_type == p.qtype.getCode()) && loopRR.auth) {
           r->addRecord(DNSZoneRecord(loopRR));
           haveRecords = true;
+        }
+      }
+      if (!haveRecords) {
+        for(const auto& loopRR: rrset) {
+          if (loopRR.dr.d_type == QType::CNAME) {
+            r->addRecord(DNSZoneRecord(loopRR));
+            haveRecords = true;
+            break;
+          }
         }
       }
 
