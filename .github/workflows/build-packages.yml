@@ -146,7 +146,7 @@ jobs:
       - name: Get list of OS inputs
         run: for i in ${{ inputs.os }}; do echo "\"pkghashes-$i\""; done | sort | tee /tmp/os-inputs.txt; echo "\"srchashes\"" | tee -a /tmp/os-inputs.txt
       - name: Fail if there is a hash missing
-        run: if ! diff -q /tmp/build-outputs.txt /tmp/os-inputs.txt; then exit 1; fi
+        run: if ! diff /tmp/build-outputs.txt /tmp/os-inputs.txt; then exit 1; fi
 
   provenance-pkgs:
     needs: [prepare, build]
