@@ -47,6 +47,7 @@
 #include "auth-main.hh"
 #include "trusted-notification-proxy.hh"
 #include "gss_context.hh"
+#include "stubresolver.hh"
 
 #if 0
 #undef DLOG
@@ -1346,7 +1347,6 @@ std::unique_ptr<DNSPacket> PacketHandler::doQuestion(DNSPacket& p)
   vector<DNSZoneRecord> rrset;
   bool weDone=false, weRedirected=false, weHaveUnauth=false, doSigs=false;
   DNSName haveAlias;
-  uint8_t aliasScopeMask;
 
   std::unique_ptr<DNSPacket> r{nullptr};
   bool noCache=false;
@@ -1593,7 +1593,6 @@ std::unique_ptr<DNSPacket> PacketHandler::doQuestion(DNSPacket& p)
     B.lookup(QType(QType::ANY), target, d_sd.domain_id, &p);
     rrset.clear();
     haveAlias.clear();
-    aliasScopeMask = 0;
     weDone = weRedirected = weHaveUnauth =  false;
 
     while(B.get(rr)) {
@@ -1655,7 +1654,6 @@ std::unique_ptr<DNSPacket> PacketHandler::doQuestion(DNSPacket& p)
           continue;
         }
         haveAlias=getRR<ALIASRecordContent>(rr.dr)->getContent();
-        aliasScopeMask=rr.scopeMask;
       }
 
       // Filter out all SOA's and add them in later
@@ -1681,8 +1679,49 @@ std::unique_ptr<DNSPacket> PacketHandler::doQuestion(DNSPacket& p)
 
     if(!haveAlias.empty() && (!weDone || p.qtype.getCode() == QType::ANY)) {
       DLOG(g_log<<Logger::Warning<<"Found nothing that matched for '"<<target<<"', but did get alias to '"<<haveAlias<<"', referring"<<endl);
-      DP->completePacket(r, haveAlias, target, aliasScopeMask);
-      return nullptr;
+      //stubDoResolve(qname, r->qtype.getCode(), vector<DNSZoneRecord> ret&, aliasScopeMask);
+//  bool completePacket(DNSPacket& reply, const DNSName& target, const DNSName& aname, uint8_t scopeMask);
+      //DP->completePacket(r, haveAlias, target, aliasScopeMask);
+
+      vector<DNSZoneRecord> ips;
+      int ret1 = 0;
+      int ret2 = 0;
+      // rip out edns info here, pass it to the stubDoResolve
+      if (r->qtype == QType::A || r->qtype == QType::ANY) {
+        ret1 = stubDoResolve(haveAlias, QType::A, ips, r->hasEDNSSubnet() ? &r->d_eso : nullptr);
+      }
+      if (r->qtype == QType::AAAA || r->qtype == QType::ANY) {
+        ret2 = stubDoResolve(haveAlias, QType::AAAA, ips, r->hasEDNSSubnet() ? &r->d_eso : nullptr);
+      }
+
+      if (ret1 != RCode::NoError || ret2 != RCode::NoError) {
+        g_log << Logger::Error << "Error resolving for " << target << " ALIAS " << haveAlias << " over UDP";
+        if (ret1 != RCode::NoError) {
+          g_log << Logger::Error << ", A-record query returned " << RCode::to_s(ret1);
+        }
+        if (ret2 != RCode::NoError) {
+          g_log << Logger::Error << ", AAAA-record query returned " << RCode::to_s(ret2);
+        }
+        g_log << Logger::Error << ", returning SERVFAIL" << endl;
+        r->clearRecords();
+        r->setRcode(RCode::ServFail);
+        goto sendit;
+      }
+      else {
+        for (auto& ip : ips) { // NOLINT(readability-identifier-length)
+          ip.dr.d_name = target;
+          r->addRecord(std::move(ip));
+        }
+      }
+
+      weDone = true;
+
+      // uint16_t len = htons(r->getString().length());
+      // string buffer((const char*)&len, 2);
+      // buffer.append(r->getString());
+      // writen2WithTimeout(r->getSocket(), buffer.c_str(), buffer.length(), timeval{::arg().asNum("tcp-idle-timeout"), 0});
+      //
+      // return nullptr;
     }
 
 
