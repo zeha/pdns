@@ -248,6 +248,95 @@ BOOST_AUTO_TEST_CASE(test_xfrSvcParamKeyVals_ipv6hint) {
   32,1,13,184,0,0,0,0,0,0,0,0,0,0,0,2}));
 }
 
+BOOST_AUTO_TEST_CASE(test_xfrSvcParamKeyVals_dohpath) {
+  DNSName name("powerdns.com.");
+  vector<uint8_t> packet;
+  DNSPacketWriter pwR(packet, name, QType::SVCB, QClass::IN, 0);
+  pwR.getHeader()->qr = 1;
+
+  set<SvcParam> params({SvcParam(SvcParam::dohpath, "a very bogus dohpath value")});
+
+  pwR.startRecord(name, QType::SVCB);
+  pwR.commit();
+  auto start = pwR.getContent().size();
+
+  pwR.xfrSvcParamKeyVals(params);
+  pwR.commit();
+  auto cit = pwR.getContent().begin();
+  for (size_t i = 0; i<start; i++)
+    cit++;
+
+  vector c(cit, pwR.getContent().end());
+#if 0
+  std::cout << "dohpath:";
+  for (const auto& v: c) {
+    std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(v) << ' ';
+  }
+  std::cout << std::dec << std::endl;
+#endif
+  BOOST_CHECK(c == vector<uint8_t>({0, 7, 0, 26,
+    'a',' ','v','e','r','y',' ','b','o','g','u','s',' ',
+    'd','o','h','p','a','t','h',' ','v','a','l','u','e'
+  }));
+}
+
+BOOST_AUTO_TEST_CASE(test_xfrSvcParamKeyVals_ohttp) {
+  DNSName name("powerdns.com.");
+  vector<uint8_t> packet;
+  DNSPacketWriter pwR(packet, name, QType::SVCB, QClass::IN, 0);
+  pwR.getHeader()->qr = 1;
+
+  set<SvcParam> params({SvcParam(SvcParam::ohttp)});
+
+  pwR.startRecord(name, QType::SVCB);
+  pwR.commit();
+  auto start = pwR.getContent().size();
+
+  pwR.xfrSvcParamKeyVals(params);
+  pwR.commit();
+  auto cit = pwR.getContent().begin();
+  for (size_t i = 0; i<start; i++)
+    cit++;
+
+  vector c(cit, pwR.getContent().end());
+  BOOST_CHECK(c == vector<uint8_t>({0, 8, 0, 0}));
+}
+
+BOOST_AUTO_TEST_CASE(test_xfrSvcParamKeyVals_tls_supported_groups) {
+  DNSName name("powerdns.com.");
+  vector<uint8_t> packet;
+  DNSPacketWriter pwR(packet, name, QType::SVCB, QClass::IN, 0);
+  pwR.getHeader()->qr = 1;
+
+  vector<uint16_t> groups({29, 23});
+  set<SvcParam> params({SvcParam(SvcParam::tls_supported_groups, std::move(groups))});
+
+  pwR.startRecord(name, QType::SVCB);
+  pwR.commit();
+  auto start = pwR.getContent().size();
+
+  pwR.xfrSvcParamKeyVals(params);
+  pwR.commit();
+  auto cit = pwR.getContent().begin();
+  for (size_t i = 0; i<start; i++)
+    cit++;
+
+  vector<uint8_t> c(cit, pwR.getContent().end());
+#if 0
+  std::cout << "tls_supported_groups:";
+  for (const auto& v: c) {
+    std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(v) << ' ';
+  }
+  std::cout << std::dec << std::endl;
+#endif
+  BOOST_CHECK(c == vector<uint8_t>({
+    0, 9,        // key 9
+    0, 4,        // size
+    0, 0x1d,     // 29
+    0, 0x17,     // 23
+  }));
+}
+
 BOOST_AUTO_TEST_CASE(test_xfrSvcParamKeyVals_generic) {
   DNSName name("powerdns.com.");
   vector<uint8_t> packet;

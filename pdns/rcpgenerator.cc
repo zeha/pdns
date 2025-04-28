@@ -374,6 +374,7 @@ void RecordTextReader::xfrSvcParamKeyVals(set<SvcParam>& val) // NOLINT(readabil
 
     switch (key) {
     case SvcParam::no_default_alpn:
+    case SvcParam::ohttp:
       if (d_pos != d_end && d_string.at(d_pos) == '=') {
         throw RecordTextException(k + " key can not have values");
       }
@@ -501,6 +502,14 @@ void RecordTextReader::xfrSvcParamKeyVals(set<SvcParam>& val) // NOLINT(readabil
       val.insert(SvcParam(key, value));
       break;
     }
+    case SvcParam::tls_supported_groups: {
+      string value;
+      // TODO: unparse uint16 vector
+      xfrRFC1035CharString(value);
+      //val.insert(SvcParam(key, value));
+      break;
+    }
+    case SvcParam::dohpath:
     default: {
       string value;
       xfrRFC1035CharString(value);
@@ -943,6 +952,20 @@ void RecordTextWriter::xfrSvcParamKeyVals(const set<SvcParam>& val) {
       d_string = str + '"' + d_string + '"';
       break;
     }
+    case SvcParam::ohttp: {
+      // no value
+      break;
+    }
+    case SvcParam::tls_supported_groups: {
+      auto str = d_string;
+      d_string.clear();
+      for (auto const &k: param.getTLSSupportedGroups()) {
+        xfr16BitInt(k);
+      }
+      d_string = str + d_string;
+      break;
+    }
+    case SvcParam::dohpath:
     default:
       auto str = d_string;
       d_string.clear();
